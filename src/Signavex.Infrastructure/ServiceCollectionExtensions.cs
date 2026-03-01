@@ -29,9 +29,10 @@ public static class ServiceCollectionExtensions
         var dbPath = Path.Combine(dataDirectory, "signavex.db");
         Directory.CreateDirectory(dataDirectory);
         services.AddDbContextFactory<SignavexDbContext>(options =>
-            options.UseSqlite($"Data Source={dbPath};Journal Mode=WAL"));
+            options.UseSqlite($"Data Source={dbPath}"));
 
         services.AddSingleton<IScanStateStore, SqliteScanStateStore>();
+        services.AddSingleton<IScanHistoryStore, SqliteScanHistoryStore>();
 
         // Shared rate limiter for all Polygon/Massive API calls.
         // Free tier = 5 req/min. Paid tiers can override via config.
