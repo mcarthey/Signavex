@@ -13,4 +13,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <Target Name="TailwindBuild" BeforeTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\.tailwind\tailwindcss.exe')">
+    <Exec Command="$(MSBuildProjectDirectory)\.tailwind\tailwindcss.exe -i Styles/app.css -o wwwroot/css/app.built.css --minify"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
 </Project>

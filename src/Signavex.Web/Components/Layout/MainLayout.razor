@@ -1,23 +1,50 @@
 @inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
+<div class="flex min-h-screen bg-surface">
+    @* M3 Navigation Rail *@
+    <nav class="group fixed left-0 top-0 z-40 flex h-screen w-[72px] flex-col items-center bg-nav py-4 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] hover:w-60 overflow-hidden max-md:hidden">
         <NavMenu />
+    </nav>
+
+    @* Mobile nav *@
+    <div class="fixed top-0 left-0 right-0 z-40 flex h-14 items-center bg-nav px-4 md:hidden">
+        <button @onclick="ToggleMobile" class="text-white/70 hover:text-white p-2 -ml-2">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+        <span class="ml-3 text-white font-semibold text-lg">Signavex</span>
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://github.com/mcarthey/Signavex" target="_blank">Signavex</a>
+    @if (_mobileOpen)
+    {
+        <div class="fixed inset-0 z-50 md:hidden">
+            <div class="absolute inset-0 bg-black/50" @onclick="ToggleMobile"></div>
+            <nav class="absolute left-0 top-0 h-full w-60 bg-nav py-4 animate-slide-in">
+                <NavMenu />
+            </nav>
         </div>
+    }
 
-        <article class="content px-4">
+    @* Main content area *@
+    <main class="flex-1 md:ml-[72px] mt-14 md:mt-0 min-h-screen">
+        <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
             @Body
-        </article>
+        </div>
     </main>
 </div>
 
 <div id="blazor-error-ui">
     An unhandled error has occurred.
     <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
+    <a class="dismiss">&#x2715;</a>
 </div>
+
+@code {
+    private bool _mobileOpen;
+
+    private void ToggleMobile()
+    {
+        _mobileOpen = !_mobileOpen;
+    }
+}

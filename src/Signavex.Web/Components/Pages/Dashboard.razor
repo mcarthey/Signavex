@@ -4,95 +4,158 @@
 @using Signavex.Domain.Models
 @using Signavex.Web.Services
 @inject ScanResultsService ScanService
+@inject ApiKeyValidationService ApiKeyService
 @inject IJSRuntime JS
 @rendermode InteractiveServer
 @implements IDisposable
 
 <PageTitle>Signavex Dashboard</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Dashboard</h1>
-    <div>
-        @if (ScanService.LastScanTime.HasValue)
-        {
-            <small class="text-muted me-3">Last scan: @ScanService.LastScanTime.Value.ToString("g") UTC</small>
-        }
-        <button class="btn btn-primary" @onclick="RunScan" disabled="@ScanService.IsScanning">
-            @if (ScanService.IsScanning)
+<div class="animate-fade-in">
+    @* Header *@
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-on-surface tracking-tight">Dashboard</h1>
+            @if (ScanService.LastScanTime.HasValue)
             {
-                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                <span>Scanning...</span>
+                <p class="text-sm text-on-surface-variant mt-0.5">
+                    Last scan @RelativeTime(ScanService.LastScanTime.Value)
+                    @if (ScanService.LastScanErrors > 0)
+                    {
+                        <span class="text-warning"> · @ScanService.LastScanErrors stock(s) skipped</span>
+                    }
+                </p>
             }
-            else
+        </div>
+        <div class="flex items-center gap-2">
+            @if (ScanService.LatestResults.Count > 0)
             {
-                <span>Run Scan</span>
+                <button class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-outline px-3 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container"
+                        @onclick="ExportCsv">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    CSV
+                </button>
             }
-        </button>
-    </div>
-</div>
-
-<MarketContextBar Context="ScanService.LatestMarketContext" />
-
-@if (ScanService.LatestResults.Count == 0 && !ScanService.IsScanning)
-{
-    <div class="alert alert-secondary">
-        No candidates yet. Click <strong>Run Scan</strong> to evaluate the stock universe.
-    </div>
-}
-else
-{
-    <div class="mb-3 d-flex gap-2">
-        <select class="form-select form-select-sm w-auto" @bind="_tierFilter">
-            <option value="">All Tiers</option>
-            <option value="SP500">S&amp;P 500</option>
-            <option value="SP400">S&amp;P 400</option>
-            <option value="SP600">S&amp;P 600</option>
-        </select>
-        <select class="form-select form-select-sm w-auto" @bind="_sortBy">
-            <option value="score">Score (High to Low)</option>
-            <option value="ticker">Ticker (A-Z)</option>
-            <option value="raw">Raw Score</option>
-        </select>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCsv">
-            Export CSV
-        </button>
-    </div>
-
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead class="table-dark">
-                <tr>
-                    <th>Ticker</th>
-                    <th>Company</th>
-                    <th>Tier</th>
-                    <th class="text-center">Raw Score</th>
-                    <th class="text-center">Final Score</th>
-                    <th class="text-center">Signals</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var candidate in FilteredResults)
+            <button class="inline-flex items-center gap-2 rounded-[var(--radius-xl)] bg-primary px-5 py-2.5 text-sm font-medium text-on-primary shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                    @onclick="RunScan" disabled="@ScanService.IsScanning">
+                @if (ScanService.IsScanning)
                 {
-                    <tr>
-                        <td><strong>@candidate.Ticker</strong></td>
-                        <td>@candidate.CompanyName</td>
-                        <td><span class="badge bg-secondary">@candidate.Tier</span></td>
-                        <td class="text-center">@candidate.RawScore.ToString("F3")</td>
-                        <td class="text-center"><ScoreBadge Score="candidate.FinalScore" /></td>
-                        <td class="text-center">@candidate.SignalResults.Count(s => s.IsAvailable)</td>
-                        <td>
-                            <a href="/candidate/@candidate.Ticker" class="btn btn-sm btn-outline-primary">
-                                Details
-                            </a>
-                        </td>
-                    </tr>
+                    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Scanning...</span>
                 }
-            </tbody>
-        </table>
+                else
+                {
+                    <span>Run Scan</span>
+                }
+            </button>
+        </div>
     </div>
-    <p class="text-muted"><small>@FilteredResults.Count() of @ScanService.LatestResults.Count candidates shown</small></p>
-}
+
+    @* API Key Warning *@
+    @if (!ApiKeyService.HasAllKeys)
+    {
+        var missing = ApiKeyService.GetMissingKeys();
+        <div class="mb-4 flex items-start gap-3 rounded-[var(--radius-md)] border border-warning/30 bg-warning-container/30 p-4">
+            <svg class="h-5 w-5 shrink-0 text-warning mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <div>
+                <p class="text-sm font-medium text-on-surface">API keys not configured</p>
+                <p class="text-sm text-on-surface-variant mt-0.5">
+                    Missing: @string.Join(", ", missing).
+                    Scans will fail or return incomplete data. Configure keys in
+                    <a href="/settings" class="text-primary font-medium hover:underline">Settings</a>.
+                </p>
+            </div>
+        </div>
+    }
+
+    @* Scan Progress *@
+    @if (ScanService.IsScanning && ScanService.CurrentProgress is not null)
+    {
+        var p = ScanService.CurrentProgress;
+        <div class="mb-4 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
+            <div class="flex items-center justify-between text-sm mb-2">
+                <span class="font-medium text-on-surface">Evaluating @p.CurrentTicker</span>
+                <span class="text-on-surface-variant">@p.Evaluated / @p.Total</span>
+            </div>
+            <div class="h-2 w-full rounded-[var(--radius-full)] bg-surface-container-high overflow-hidden">
+                <div class="h-full rounded-[var(--radius-full)] bg-primary transition-all duration-300 animate-pulse-bar"
+                     style="width: @(p.Total > 0 ? (p.Evaluated * 100 / p.Total) : 0)%"></div>
+            </div>
+            @if (p.ErrorCount > 0)
+            {
+                <p class="text-xs text-warning mt-1.5">@p.ErrorCount error(s) so far</p>
+            }
+        </div>
+    }
+
+    @* Market Context *@
+    <MarketContextBar Context="ScanService.LatestMarketContext" />
+
+    @* Results *@
+    @if (ScanService.LatestResults.Count == 0 && !ScanService.IsScanning)
+    {
+        <div class="flex flex-col items-center justify-center py-16 text-center">
+            <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
+                <svg class="h-8 w-8 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+            </div>
+            <h3 class="text-base font-semibold text-on-surface">No candidates yet</h3>
+            <p class="mt-1 text-sm text-on-surface-variant max-w-sm">
+                Click <strong>Run Scan</strong> to evaluate the stock universe and discover candidates.
+            </p>
+        </div>
+    }
+    else if (ScanService.LatestResults.Count > 0)
+    {
+        @* Filter chips *@
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+            <button class="@ChipCss(_tierFilter == "")" @onclick='() => _tierFilter = ""'>All Tiers</button>
+            <button class="@ChipCss(_tierFilter == "SP500")" @onclick='() => _tierFilter = "SP500"'>S&P 500</button>
+            <button class="@ChipCss(_tierFilter == "SP400")" @onclick='() => _tierFilter = "SP400"'>S&P 400</button>
+            <button class="@ChipCss(_tierFilter == "SP600")" @onclick='() => _tierFilter = "SP600"'>S&P 600</button>
+
+            <span class="mx-1 h-4 w-px bg-outline-variant"></span>
+
+            <button class="@ChipCss(_sortBy == "score")" @onclick='() => _sortBy = "score"'>By Score</button>
+            <button class="@ChipCss(_sortBy == "ticker")" @onclick='() => _sortBy = "ticker"'>A-Z</button>
+            <button class="@ChipCss(_sortBy == "raw")" @onclick='() => _sortBy = "raw"'>Raw Score</button>
+        </div>
+
+        @* Candidate cards *@
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            @foreach (var candidate in FilteredResults)
+            {
+                <a href="/candidate/@candidate.Ticker"
+                   class="group rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:border-primary/30 no-underline">
+                    <div class="flex items-start justify-between mb-2">
+                        <div>
+                            <span class="text-base font-bold text-on-surface">@candidate.Ticker</span>
+                            <p class="text-xs text-on-surface-variant mt-0.5 truncate max-w-[150px]">@candidate.CompanyName</p>
+                        </div>
+                        <ScoreBadge Score="candidate.FinalScore" />
+                    </div>
+                    <div class="flex items-center gap-3 text-xs text-on-surface-variant">
+                        <span class="rounded-[var(--radius-xs)] bg-surface-container px-1.5 py-0.5 font-medium">@candidate.Tier</span>
+                        <span>Raw: @candidate.RawScore.ToString("F3")</span>
+                        <span>@candidate.SignalResults.Count(s => s.IsAvailable) signals</span>
+                    </div>
+                </a>
+            }
+        </div>
+
+        <p class="mt-3 text-xs text-on-surface-variant">
+            @FilteredResults.Count() of @ScanService.LatestResults.Count candidates shown
+        </p>
+    }
+</div>
 
 @code {
     private string _tierFilter = "";
@@ -101,6 +164,7 @@ else
     protected override void OnInitialized()
     {
         ScanService.OnScanCompleted += OnScanCompleted;
+        ScanService.OnProgressChanged += OnProgressChanged;
     }
 
     private IEnumerable<StockCandidate> FilteredResults
@@ -143,8 +207,27 @@ else
         InvokeAsync(StateHasChanged);
     }
 
+    private void OnProgressChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private static string RelativeTime(DateTime utcTime)
+    {
+        var elapsed = DateTime.UtcNow - utcTime;
+        if (elapsed.TotalMinutes < 1) return "just now";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalHours < 24) return $"{(int)elapsed.TotalHours}h ago";
+        return $"{(int)elapsed.TotalDays}d ago";
+    }
+
+    private static string ChipCss(bool active) => active
+        ? "rounded-[var(--radius-sm)] bg-primary text-on-primary px-3 py-1.5 text-xs font-medium transition-colors"
+        : "rounded-[var(--radius-sm)] bg-surface-container text-on-surface-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container-high";
+
     public void Dispose()
     {
         ScanService.OnScanCompleted -= OnScanCompleted;
+        ScanService.OnProgressChanged -= OnProgressChanged;
     }
 }

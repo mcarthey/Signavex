@@ -27,6 +27,7 @@ builder.Services
 // Application services
 builder.Services.AddSingleton<ScanResultsService>();
 builder.Services.AddSingleton<BacktestRunnerService>();
+builder.Services.AddSingleton<ApiKeyValidationService>();
 
 // Blazor
 builder.Services.AddRazorComponents()

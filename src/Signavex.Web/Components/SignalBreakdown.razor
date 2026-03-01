@@ -1,41 +1,52 @@
 @using Signavex.Domain.Models
 
-<table class="table table-sm table-striped">
-    <thead>
-        <tr>
-            <th>Signal</th>
-            <th class="text-center">Score</th>
-            <th class="text-center">Weight</th>
-            <th>Reason</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var signal in Signals.OrderByDescending(s => s.Score * s.Weight))
-        {
-            <tr class="@(signal.IsAvailable ? "" : "text-muted")">
-                <td>@signal.SignalName</td>
-                <td class="text-center">
-                    <span class="badge @ScoreBadgeCss(signal.Score)">
-                        @signal.Score.ToString("+0.00;-0.00")
-                    </span>
-                </td>
-                <td class="text-center">@signal.Weight.ToString("F1")</td>
-                <td><small>@signal.Reason</small></td>
-            </tr>
-        }
-    </tbody>
-</table>
+<div class="space-y-2">
+    @foreach (var signal in Signals.OrderByDescending(s => s.Score * s.Weight))
+    {
+        <div class="flex items-center gap-3 rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container-lowest px-4 py-3 @(signal.IsAvailable ? "" : "opacity-50")">
+            @* Score indicator bar *@
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-xs)]  @ScoreBgCss(signal.Score)">
+                <span class="text-xs font-bold @ScoreTextCss(signal.Score)">
+                    @signal.Score.ToString("+0.0;-0.0")
+                </span>
+            </div>
+
+            @* Signal info *@
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-on-surface">@signal.SignalName</span>
+                    @if (!signal.IsAvailable)
+                    {
+                        <span class="rounded-[var(--radius-full)] bg-surface-container-high px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">N/A</span>
+                    }
+                </div>
+                <p class="text-xs text-on-surface-variant truncate">@signal.Reason</p>
+            </div>
+
+            @* Weight *@
+            <span class="shrink-0 text-xs font-medium text-on-surface-variant">
+                @signal.Weight.ToString("F1")w
+            </span>
+        </div>
+    }
+</div>
 
 @code {
     [Parameter, EditorRequired]
     public IEnumerable<SignalResult> Signals { get; set; } = Enumerable.Empty<SignalResult>();
 
-    private static string ScoreBadgeCss(double score) => score switch
+    private static string ScoreBgCss(double score) => score switch
     {
-        >= 0.5 => "bg-success",
-        > 0 => "bg-success bg-opacity-50 text-dark",
-        0 => "bg-secondary",
-        > -0.5 => "bg-danger bg-opacity-50 text-dark",
-        _ => "bg-danger"
+        >= 0.5 => "bg-success-container",
+        > 0 => "bg-success-container/50",
+        0 => "bg-surface-container-high",
+        > -0.5 => "bg-error-container/50",
+        _ => "bg-error-container"
+    };
+
+    private static string ScoreTextCss(double score) => score switch
+    {
+        >= 0 => "text-success",
+        _ => "text-error"
     };
 }

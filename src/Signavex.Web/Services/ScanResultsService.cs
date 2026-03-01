@@ -5,7 +5,7 @@ namespace Signavex.Web.Services;
 
 /// <summary>
 /// Bridges the scan engine to the Blazor UI. Stores the latest scan results
-/// and provides on-demand scan triggering.
+/// and provides on-demand scan triggering with progress reporting.
 /// </summary>
 public class ScanResultsService
 {
@@ -17,6 +17,8 @@ public class ScanResultsService
     private MarketContext? _latestMarketContext;
     private DateTime? _lastScanTime;
     private bool _isScanning;
+    private ScanProgress? _currentProgress;
+    private int _lastScanErrors;
 
     public ScanResultsService(IServiceScopeFactory scopeFactory, ILogger<ScanResultsService> logger)
     {
@@ -44,7 +46,18 @@ public class ScanResultsService
         get { lock (_lock) return _isScanning; }
     }
 
+    public ScanProgress? CurrentProgress
+    {
+        get { lock (_lock) return _currentProgress; }
+    }
+
+    public int LastScanErrors
+    {
+        get { lock (_lock) return _lastScanErrors; }
+    }
+
     public event Action? OnScanCompleted;
+    public event Action? OnProgressChanged;
 
     public async Task RunScanAsync(CancellationToken cancellationToken = default)
     {
@@ -52,19 +65,27 @@ public class ScanResultsService
         {
             if (_isScanning) return;
             _isScanning = true;
+            _currentProgress = null;
         }
+
+        var progress = new Progress<ScanProgress>(p =>
+        {
+            lock (_lock) _currentProgress = p;
+            OnProgressChanged?.Invoke();
+        });
 
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var engine = scope.ServiceProvider.GetRequiredService<ScanEngine>();
-            var candidates = await engine.RunScanAsync(cancellationToken);
+            var candidates = await engine.RunScanAsync(progress, cancellationToken);
 
             lock (_lock)
             {
                 _latestResults = candidates;
                 _latestMarketContext = candidates.FirstOrDefault()?.MarketContext;
                 _lastScanTime = DateTime.UtcNow;
+                _lastScanErrors = _currentProgress?.ErrorCount ?? 0;
             }
 
             _logger.LogInformation("Scan completed: {Count} candidates", candidates.Count);
@@ -75,7 +96,11 @@ public class ScanResultsService
         }
         finally
         {
-            lock (_lock) _isScanning = false;
+            lock (_lock)
+            {
+                _isScanning = false;
+                _currentProgress = null;
+            }
             OnScanCompleted?.Invoke();
         }
     }

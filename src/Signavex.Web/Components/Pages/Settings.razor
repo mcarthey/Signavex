@@ -1,68 +1,103 @@
 @page "/settings"
 @using Signavex.Domain.Configuration
+@using Signavex.Web.Services
 @using Microsoft.Extensions.Options
 @inject IOptionsMonitor<SignavexOptions> OptionsMonitor
+@inject ApiKeyValidationService ApiKeyService
 @rendermode InteractiveServer
 
 <PageTitle>Settings — Signavex</PageTitle>
 
-<h1>Signal Weights</h1>
-<p class="text-muted">Current signal weight configuration. Weights are loaded from <code>appsettings.json</code>.</p>
-
-<div class="row">
-    <div class="col-md-6">
-        <h4>Stock Signals (Tier 2)</h4>
-        <table class="table table-sm">
-            <thead>
-                <tr>
-                    <th>Signal</th>
-                    <th class="text-end">Weight</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td>Volume Threshold</td><td class="text-end">@_weights.VolumeThreshold.ToString("F1")</td></tr>
-                <tr><td>Moving Average Crossover</td><td class="text-end">@_weights.MovingAverageCrossover.ToString("F1")</td></tr>
-                <tr><td>Support/Resistance</td><td class="text-end">@_weights.SupportResistance.ToString("F1")</td></tr>
-                <tr><td>Trend Direction</td><td class="text-end">@_weights.TrendDirection.ToString("F1")</td></tr>
-                <tr><td>Channel Position</td><td class="text-end">@_weights.ChannelPosition.ToString("F1")</td></tr>
-                <tr><td>News Sentiment</td><td class="text-end">@_weights.NewsSentiment.ToString("F1")</td></tr>
-                <tr><td>Analyst Rating</td><td class="text-end">@_weights.AnalystRating.ToString("F1")</td></tr>
-                <tr><td>P/E vs Industry</td><td class="text-end">@_weights.PeRatioVsIndustry.ToString("F1")</td></tr>
-                <tr><td>Debt/Equity Ratio</td><td class="text-end">@_weights.DebtEquityRatio.ToString("F1")</td></tr>
-                <tr><td>Earnings Trend</td><td class="text-end">@_weights.EarningsTrend.ToString("F1")</td></tr>
-            </tbody>
-        </table>
+<div class="animate-fade-in">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-on-surface tracking-tight">Settings</h1>
+        <p class="text-sm text-on-surface-variant mt-0.5">Current signal weight configuration</p>
     </div>
 
-    <div class="col-md-6">
-        <h4>Market Signals (Tier 1)</h4>
-        <table class="table table-sm">
-            <thead>
-                <tr>
-                    <th>Signal</th>
-                    <th class="text-end">Weight</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td>Market Trend</td><td class="text-end">@_marketWeights.MarketTrend.ToString("F1")</td></tr>
-                <tr><td>Interest Rate Environment</td><td class="text-end">@_marketWeights.InterestRateEnvironment.ToString("F1")</td></tr>
-                <tr><td>VIX Level</td><td class="text-end">@_marketWeights.VixLevel.ToString("F1")</td></tr>
-                <tr><td>Sector Momentum</td><td class="text-end">@_marketWeights.SectorMomentum.ToString("F1")</td></tr>
-            </tbody>
-        </table>
-
-        <h4 class="mt-4">General</h4>
-        <table class="table table-sm">
-            <tbody>
-                <tr><td>Surfacing Threshold</td><td class="text-end">@_options.SurfacingThreshold.ToString("F2")</td></tr>
-                <tr><td>Universe</td><td class="text-end">@string.Join(", ", _options.Universe)</td></tr>
-            </tbody>
-        </table>
+    @* API Key Status *@
+    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
+        <h3 class="text-base font-semibold text-on-surface mb-3">API Keys</h3>
+        <div class="space-y-2">
+            @foreach (var (name, configured) in GetKeyStatus())
+            {
+                <div class="flex items-center gap-2">
+                    @if (configured)
+                    {
+                        <div class="h-2 w-2 rounded-full bg-success"></div>
+                        <span class="text-sm text-on-surface">@name</span>
+                        <span class="text-xs text-success">Configured</span>
+                    }
+                    else
+                    {
+                        <div class="h-2 w-2 rounded-full bg-error"></div>
+                        <span class="text-sm text-on-surface">@name</span>
+                        <span class="text-xs text-error">Not configured</span>
+                    }
+                </div>
+            }
+        </div>
     </div>
-</div>
 
-<div class="alert alert-info mt-3">
-    To modify weights, edit the <code>Signavex:SignalWeights</code> section in <code>appsettings.json</code> and restart the application.
+    <div class="grid gap-4 md:grid-cols-2">
+        @* Stock Signals *@
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
+            <h3 class="text-base font-semibold text-on-surface mb-3">Stock Signals (Tier 2)</h3>
+            <div class="space-y-2">
+                @foreach (var (name, weight) in GetStockSignals())
+                {
+                    <div class="flex items-center justify-between py-1">
+                        <span class="text-sm text-on-surface">@name</span>
+                        <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                            @weight.ToString("F1")
+                        </span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            @* Market Signals *@
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
+                <h3 class="text-base font-semibold text-on-surface mb-3">Market Signals (Tier 1)</h3>
+                <div class="space-y-2">
+                    @foreach (var (name, weight) in GetMarketSignals())
+                    {
+                        <div class="flex items-center justify-between py-1">
+                            <span class="text-sm text-on-surface">@name</span>
+                            <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                                @weight.ToString("F1")
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* General *@
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
+                <h3 class="text-base font-semibold text-on-surface mb-3">General</h3>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between py-1">
+                        <span class="text-sm text-on-surface">Surfacing Threshold</span>
+                        <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                            @_options.SurfacingThreshold.ToString("F2")
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between py-1">
+                        <span class="text-sm text-on-surface">Universe</span>
+                        <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                            @string.Join(", ", _options.Universe)
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 rounded-[var(--radius-md)] border border-primary/20 bg-primary-container/10 p-4">
+        <p class="text-sm text-on-surface-variant">
+            To modify weights or API keys, edit <code class="rounded bg-surface-container px-1 py-0.5 text-xs font-mono text-on-surface">appsettings.json</code> and restart the application.
+        </p>
+    </div>
 </div>
 
 @code {
@@ -75,5 +110,38 @@
         _options = OptionsMonitor.CurrentValue;
         _weights = _options.SignalWeights;
         _marketWeights = _options.MarketSignalWeights;
+    }
+
+    private IEnumerable<(string Name, double Weight)> GetStockSignals() => new[]
+    {
+        ("Volume Threshold", _weights.VolumeThreshold),
+        ("Moving Average Crossover", _weights.MovingAverageCrossover),
+        ("Support/Resistance", _weights.SupportResistance),
+        ("Trend Direction", _weights.TrendDirection),
+        ("Channel Position", _weights.ChannelPosition),
+        ("News Sentiment", _weights.NewsSentiment),
+        ("Analyst Rating", _weights.AnalystRating),
+        ("P/E vs Industry", _weights.PeRatioVsIndustry),
+        ("Debt/Equity Ratio", _weights.DebtEquityRatio),
+        ("Earnings Trend", _weights.EarningsTrend)
+    };
+
+    private IEnumerable<(string Name, double Weight)> GetMarketSignals() => new[]
+    {
+        ("Market Trend", _marketWeights.MarketTrend),
+        ("Interest Rate Environment", _marketWeights.InterestRateEnvironment),
+        ("VIX Level", _marketWeights.VixLevel),
+        ("Sector Momentum", _marketWeights.SectorMomentum)
+    };
+
+    private IEnumerable<(string Name, bool Configured)> GetKeyStatus()
+    {
+        var missing = ApiKeyService.GetMissingKeys();
+        return new[]
+        {
+            ("Polygon", !missing.Any(m => m.Contains("Polygon"))),
+            ("Alpha Vantage", !missing.Any(m => m.Contains("Alpha"))),
+            ("FRED", !missing.Any(m => m.Contains("FRED")))
+        };
     }
 }

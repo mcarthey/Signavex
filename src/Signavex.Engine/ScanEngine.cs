@@ -45,7 +45,12 @@ public class ScanEngine
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<StockCandidate>> RunScanAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<StockCandidate>> RunScanAsync(CancellationToken cancellationToken = default)
+        => RunScanAsync(null, cancellationToken);
+
+    public async Task<IReadOnlyList<StockCandidate>> RunScanAsync(
+        IProgress<ScanProgress>? progress,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting Signavex scan at {Time}", DateTime.UtcNow);
 
@@ -63,10 +68,14 @@ public class ScanEngine
 
         // Step 3: Evaluate each stock (Tier 2)
         var candidates = new List<StockCandidate>();
+        var errorCount = 0;
+        var evaluated = 0;
 
         foreach (var (ticker, tier) in universe)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new ScanProgress(evaluated, universe.Count, ticker, errorCount));
 
             try
             {
@@ -85,11 +94,16 @@ public class ScanEngine
             }
             catch (Exception ex)
             {
+                errorCount++;
                 _logger.LogWarning(ex, "Failed to evaluate {Ticker} — skipping", ticker);
             }
+
+            evaluated++;
         }
 
-        _logger.LogInformation("Scan complete. {Count} candidates surfaced.", candidates.Count);
+        progress?.Report(new ScanProgress(evaluated, universe.Count, "", errorCount));
+
+        _logger.LogInformation("Scan complete. {Count} candidates surfaced, {Errors} errors.", candidates.Count, errorCount);
         return candidates.OrderByDescending(c => c.FinalScore).ToList().AsReadOnly();
     }
 }
