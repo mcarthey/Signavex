@@ -1,8 +1,10 @@
 @page "/dashboard"
 @using Signavex.Domain.Enums
+@using Signavex.Domain.Helpers
 @using Signavex.Domain.Models
 @using Signavex.Web.Services
 @inject ScanResultsService ScanService
+@inject IJSRuntime JS
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -51,6 +53,9 @@ else
             <option value="ticker">Ticker (A-Z)</option>
             <option value="raw">Raw Score</option>
         </select>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCsv">
+            Export CSV
+        </button>
     </div>
 
     <div class="table-responsive">
@@ -121,6 +126,16 @@ else
     private async Task RunScan()
     {
         await ScanService.RunScanAsync();
+    }
+
+    private async Task ExportCsv()
+    {
+        if (ScanService.LatestResults.Count == 0)
+            return;
+
+        var csv = CsvExportHelper.GenerateCsv(ScanService.LatestResults);
+        var fileName = $"signavex-scan-{DateTime.UtcNow:yyyy-MM-dd}.csv";
+        await JS.InvokeVoidAsync("downloadFile", fileName, csv);
     }
 
     private void OnScanCompleted()
