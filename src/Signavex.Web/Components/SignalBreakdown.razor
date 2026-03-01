@@ -1,0 +1,41 @@
+@using Signavex.Domain.Models
+
+<table class="table table-sm table-striped">
+    <thead>
+        <tr>
+            <th>Signal</th>
+            <th class="text-center">Score</th>
+            <th class="text-center">Weight</th>
+            <th>Reason</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var signal in Signals.OrderByDescending(s => s.Score * s.Weight))
+        {
+            <tr class="@(signal.IsAvailable ? "" : "text-muted")">
+                <td>@signal.SignalName</td>
+                <td class="text-center">
+                    <span class="badge @ScoreBadgeCss(signal.Score)">
+                        @signal.Score.ToString("+0.00;-0.00")
+                    </span>
+                </td>
+                <td class="text-center">@signal.Weight.ToString("F1")</td>
+                <td><small>@signal.Reason</small></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired]
+    public IEnumerable<SignalResult> Signals { get; set; } = Enumerable.Empty<SignalResult>();
+
+    private static string ScoreBadgeCss(double score) => score switch
+    {
+        >= 0.5 => "bg-success",
+        > 0 => "bg-success bg-opacity-50 text-dark",
+        0 => "bg-secondary",
+        > -0.5 => "bg-danger bg-opacity-50 text-dark",
+        _ => "bg-danger"
+    };
+}

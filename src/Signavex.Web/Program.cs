@@ -3,6 +3,7 @@ using Signavex.Engine;
 using Signavex.Infrastructure;
 using Signavex.Signals;
 using Signavex.Web.Components;
+using Signavex.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +23,9 @@ builder.Services
     .AddSignavexSignals()
     .AddSignavexEngine()
     .AddSignavexInfrastructure(providerOptions);
+
+// Application services
+builder.Services.AddSingleton<ScanResultsService>();
 
 // Blazor
 builder.Services.AddRazorComponents()

@@ -1,0 +1,79 @@
+@page "/settings"
+@using Signavex.Domain.Configuration
+@using Microsoft.Extensions.Options
+@inject IOptionsMonitor<SignavexOptions> OptionsMonitor
+@rendermode InteractiveServer
+
+<PageTitle>Settings — Signavex</PageTitle>
+
+<h1>Signal Weights</h1>
+<p class="text-muted">Current signal weight configuration. Weights are loaded from <code>appsettings.json</code>.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <h4>Stock Signals (Tier 2)</h4>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Signal</th>
+                    <th class="text-end">Weight</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Volume Threshold</td><td class="text-end">@_weights.VolumeThreshold.ToString("F1")</td></tr>
+                <tr><td>Moving Average Crossover</td><td class="text-end">@_weights.MovingAverageCrossover.ToString("F1")</td></tr>
+                <tr><td>Support/Resistance</td><td class="text-end">@_weights.SupportResistance.ToString("F1")</td></tr>
+                <tr><td>Trend Direction</td><td class="text-end">@_weights.TrendDirection.ToString("F1")</td></tr>
+                <tr><td>Channel Position</td><td class="text-end">@_weights.ChannelPosition.ToString("F1")</td></tr>
+                <tr><td>News Sentiment</td><td class="text-end">@_weights.NewsSentiment.ToString("F1")</td></tr>
+                <tr><td>Analyst Rating</td><td class="text-end">@_weights.AnalystRating.ToString("F1")</td></tr>
+                <tr><td>P/E vs Industry</td><td class="text-end">@_weights.PeRatioVsIndustry.ToString("F1")</td></tr>
+                <tr><td>Debt/Equity Ratio</td><td class="text-end">@_weights.DebtEquityRatio.ToString("F1")</td></tr>
+                <tr><td>Earnings Trend</td><td class="text-end">@_weights.EarningsTrend.ToString("F1")</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="col-md-6">
+        <h4>Market Signals (Tier 1)</h4>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Signal</th>
+                    <th class="text-end">Weight</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Market Trend</td><td class="text-end">@_marketWeights.MarketTrend.ToString("F1")</td></tr>
+                <tr><td>Interest Rate Environment</td><td class="text-end">@_marketWeights.InterestRateEnvironment.ToString("F1")</td></tr>
+                <tr><td>VIX Level</td><td class="text-end">@_marketWeights.VixLevel.ToString("F1")</td></tr>
+                <tr><td>Sector Momentum</td><td class="text-end">@_marketWeights.SectorMomentum.ToString("F1")</td></tr>
+            </tbody>
+        </table>
+
+        <h4 class="mt-4">General</h4>
+        <table class="table table-sm">
+            <tbody>
+                <tr><td>Surfacing Threshold</td><td class="text-end">@_options.SurfacingThreshold.ToString("F2")</td></tr>
+                <tr><td>Universe</td><td class="text-end">@string.Join(", ", _options.Universe)</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="alert alert-info mt-3">
+    To modify weights, edit the <code>Signavex:SignalWeights</code> section in <code>appsettings.json</code> and restart the application.
+</div>
+
+@code {
+    private SignavexOptions _options = new();
+    private SignalWeightsOptions _weights = new();
+    private MarketSignalWeightsOptions _marketWeights = new();
+
+    protected override void OnInitialized()
+    {
+        _options = OptionsMonitor.CurrentValue;
+        _weights = _options.SignalWeights;
+        _marketWeights = _options.MarketSignalWeights;
+    }
+}

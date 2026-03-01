@@ -1,0 +1,135 @@
+@page "/dashboard"
+@using Signavex.Domain.Enums
+@using Signavex.Domain.Models
+@using Signavex.Web.Services
+@inject ScanResultsService ScanService
+@rendermode InteractiveServer
+@implements IDisposable
+
+<PageTitle>Signavex Dashboard</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Dashboard</h1>
+    <div>
+        @if (ScanService.LastScanTime.HasValue)
+        {
+            <small class="text-muted me-3">Last scan: @ScanService.LastScanTime.Value.ToString("g") UTC</small>
+        }
+        <button class="btn btn-primary" @onclick="RunScan" disabled="@ScanService.IsScanning">
+            @if (ScanService.IsScanning)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <span>Scanning...</span>
+            }
+            else
+            {
+                <span>Run Scan</span>
+            }
+        </button>
+    </div>
+</div>
+
+<MarketContextBar Context="ScanService.LatestMarketContext" />
+
+@if (ScanService.LatestResults.Count == 0 && !ScanService.IsScanning)
+{
+    <div class="alert alert-secondary">
+        No candidates yet. Click <strong>Run Scan</strong> to evaluate the stock universe.
+    </div>
+}
+else
+{
+    <div class="mb-3 d-flex gap-2">
+        <select class="form-select form-select-sm w-auto" @bind="_tierFilter">
+            <option value="">All Tiers</option>
+            <option value="SP500">S&amp;P 500</option>
+            <option value="SP400">S&amp;P 400</option>
+            <option value="SP600">S&amp;P 600</option>
+        </select>
+        <select class="form-select form-select-sm w-auto" @bind="_sortBy">
+            <option value="score">Score (High to Low)</option>
+            <option value="ticker">Ticker (A-Z)</option>
+            <option value="raw">Raw Score</option>
+        </select>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Ticker</th>
+                    <th>Company</th>
+                    <th>Tier</th>
+                    <th class="text-center">Raw Score</th>
+                    <th class="text-center">Final Score</th>
+                    <th class="text-center">Signals</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var candidate in FilteredResults)
+                {
+                    <tr>
+                        <td><strong>@candidate.Ticker</strong></td>
+                        <td>@candidate.CompanyName</td>
+                        <td><span class="badge bg-secondary">@candidate.Tier</span></td>
+                        <td class="text-center">@candidate.RawScore.ToString("F3")</td>
+                        <td class="text-center"><ScoreBadge Score="candidate.FinalScore" /></td>
+                        <td class="text-center">@candidate.SignalResults.Count(s => s.IsAvailable)</td>
+                        <td>
+                            <a href="/candidate/@candidate.Ticker" class="btn btn-sm btn-outline-primary">
+                                Details
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted"><small>@FilteredResults.Count() of @ScanService.LatestResults.Count candidates shown</small></p>
+}
+
+@code {
+    private string _tierFilter = "";
+    private string _sortBy = "score";
+
+    protected override void OnInitialized()
+    {
+        ScanService.OnScanCompleted += OnScanCompleted;
+    }
+
+    private IEnumerable<StockCandidate> FilteredResults
+    {
+        get
+        {
+            var results = ScanService.LatestResults.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(_tierFilter) && Enum.TryParse<MarketTier>(_tierFilter, out var tier))
+                results = results.Where(c => c.Tier == tier);
+
+            results = _sortBy switch
+            {
+                "ticker" => results.OrderBy(c => c.Ticker),
+                "raw" => results.OrderByDescending(c => c.RawScore),
+                _ => results.OrderByDescending(c => c.FinalScore)
+            };
+
+            return results;
+        }
+    }
+
+    private async Task RunScan()
+    {
+        await ScanService.RunScanAsync();
+    }
+
+    private void OnScanCompleted()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ScanService.OnScanCompleted -= OnScanCompleted;
+    }
+}

@@ -1,7 +1,43 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Signavex</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Signavex</h1>
+<p class="lead">Market discovery and signal analysis tool.</p>
 
-Welcome to your new app.
+<p>
+    Signavex surfaces stocks worth investigating by stacking multiple confirming signals.
+    It scans the S&amp;P 500 and S&amp;P 400 universe daily, evaluating technical, fundamental,
+    and sentiment indicators against current market conditions.
+</p>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">10 Stock Signals</h5>
+                <p class="card-text">Technical (MA crossover, support/resistance, trend, channel, volume), fundamental (P/E, D/E, earnings), and sentiment (news, analyst ratings).</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">4 Market Signals</h5>
+                <p class="card-text">Market trend, interest rates, VIX fear gauge, and sector momentum gate and scale all stock scores.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Configurable Weights</h5>
+                <p class="card-text">Every signal weight is configurable. Stronger macro indicators carry more weight by default.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <a href="/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
+</div>

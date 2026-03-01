@@ -1,0 +1,15 @@
+@* Traffic light score badge: green >= 0.75, yellow >= 0.65, red below *@
+
+<span class="badge @CssClass">@Score.ToString("F2")</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public double Score { get; set; }
+
+    private string CssClass => Score switch
+    {
+        >= 0.75 => "bg-success",
+        >= 0.65 => "bg-warning text-dark",
+        _ => "bg-danger"
+    };
+}
