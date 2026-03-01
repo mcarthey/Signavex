@@ -2,6 +2,7 @@ using Signavex.Domain.Configuration;
 using Signavex.Domain.Interfaces;
 using Signavex.Domain.Models;
 using Microsoft.Extensions.Options;
+using Skender.Stock.Indicators;
 
 namespace Signavex.Signals.Technical;
 
@@ -25,11 +26,17 @@ public sealed class MovingAverageCrossoverSignal : IStockSignal
         if (stock.OhlcvHistory.Count < 31)
             return Task.FromResult(new SignalResult(Name, 0, DefaultWeight, "Insufficient data for 30-day MA", false));
 
-        var closes = stock.OhlcvHistory.Select(r => (double)r.Close).ToList();
-        var ma14Today = closes.TakeLast(14).Average();
-        var ma30Today = closes.TakeLast(30).Average();
-        var ma14Yesterday = closes.SkipLast(1).TakeLast(14).Average();
-        var ma30Yesterday = closes.SkipLast(1).TakeLast(30).Average();
+        var quotes = stock.OhlcvHistory.ToQuotes();
+        var sma14 = quotes.GetSma(14).ToList();
+        var sma30 = quotes.GetSma(30).ToList();
+
+        var ma14Today = sma14[^1].Sma;
+        var ma30Today = sma30[^1].Sma;
+        var ma14Yesterday = sma14[^2].Sma;
+        var ma30Yesterday = sma30[^2].Sma;
+
+        if (ma14Today is null || ma30Today is null || ma14Yesterday is null || ma30Yesterday is null)
+            return Task.FromResult(new SignalResult(Name, 0, DefaultWeight, "Insufficient data for 30-day MA", false));
 
         bool crossedAbove = ma14Today > ma30Today && ma14Yesterday <= ma30Yesterday;
         bool crossedBelow = ma14Today < ma30Today && ma14Yesterday >= ma30Yesterday;

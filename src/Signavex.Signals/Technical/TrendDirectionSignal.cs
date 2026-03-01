@@ -2,6 +2,7 @@ using Signavex.Domain.Configuration;
 using Signavex.Domain.Interfaces;
 using Signavex.Domain.Models;
 using Microsoft.Extensions.Options;
+using Skender.Stock.Indicators;
 
 namespace Signavex.Signals.Technical;
 
@@ -28,19 +29,15 @@ public sealed class TrendDirectionSignal : IStockSignal
         if (stock.OhlcvHistory.Count < LookbackDays)
             return Task.FromResult(new SignalResult(Name, 0, DefaultWeight, "Insufficient data", false));
 
-        var closes = stock.OhlcvHistory.TakeLast(LookbackDays)
-            .Select((r, i) => (Index: i, Price: (double)r.Close))
-            .ToList();
+        var quotes = stock.OhlcvHistory.ToQuotes();
+        var slopeResults = quotes.GetSlope(LookbackDays).ToList();
+        var latest = slopeResults[^1];
 
-        // Linear regression slope
-        double n = closes.Count;
-        double sumX = closes.Sum(p => p.Index);
-        double sumY = closes.Sum(p => p.Price);
-        double sumXY = closes.Sum(p => p.Index * p.Price);
-        double sumX2 = closes.Sum(p => p.Index * p.Index);
-        double slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        if (latest.Slope is null)
+            return Task.FromResult(new SignalResult(Name, 0, DefaultWeight, "Insufficient data", false));
 
-        double avgPrice = sumY / n;
+        double slope = latest.Slope.Value;
+        double avgPrice = (double)stock.OhlcvHistory.TakeLast(LookbackDays).Average(r => r.Close);
         double normalizedSlope = slope / avgPrice;
 
         double score = normalizedSlope switch
