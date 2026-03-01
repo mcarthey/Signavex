@@ -14,7 +14,8 @@ public class SignavexOptions
     public double SurfacingThreshold { get; set; } = 0.65;
 
     /// <summary>
-    /// Which index universes to scan. Valid values: "SP500", "SP400".
+    /// Which index universes to scan. Valid values: "SP500", "SP400", "SP600".
+    /// SP600 is opt-in and uses a higher surfacing threshold (0.75).
     /// </summary>
     public List<string> Universe { get; set; } = ["SP500", "SP400"];
 

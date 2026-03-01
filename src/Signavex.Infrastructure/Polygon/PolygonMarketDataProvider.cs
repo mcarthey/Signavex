@@ -72,6 +72,7 @@ public class PolygonMarketDataProvider : IMarketDataProvider
             {
                 MarketIndex.SP500 => "sp500.json",
                 MarketIndex.SP400 => "sp400.json",
+                MarketIndex.SP600 => "sp600.json",
                 _ => throw new ArgumentOutOfRangeException(nameof(index), $"No constituent data for {index}")
             };
 

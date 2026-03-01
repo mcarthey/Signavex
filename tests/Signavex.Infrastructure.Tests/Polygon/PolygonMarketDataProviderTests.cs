@@ -130,4 +130,15 @@ public class PolygonMarketDataProviderTests
 
         Assert.NotEmpty(result);
     }
+
+    [Fact]
+    public async Task GetIndexConstituentsAsync_SP600_ReturnsTickers()
+    {
+        var handler = new MockHttpMessageHandler("{}");
+        var provider = CreateProvider(handler);
+
+        var result = (await provider.GetIndexConstituentsAsync(MarketIndex.SP600)).ToList();
+
+        Assert.NotEmpty(result);
+    }
 }
