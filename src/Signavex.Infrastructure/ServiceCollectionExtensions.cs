@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Signavex.Domain.Configuration;
 using Signavex.Domain.Interfaces;
 using Signavex.Infrastructure.AlphaVantage;
+using Signavex.Infrastructure.Caching;
 using Signavex.Infrastructure.Fred;
 using Signavex.Infrastructure.Polygon;
 
@@ -17,6 +18,8 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         DataProviderOptions providerOptions)
     {
+        services.AddMemoryCache();
+
         services.AddHttpClient<IMarketDataProvider, PolygonMarketDataProvider>(client =>
         {
             client.BaseAddress = new Uri(providerOptions.Polygon.BaseUrl);
@@ -27,10 +30,15 @@ public static class ServiceCollectionExtensions
             client.BaseAddress = new Uri(providerOptions.Polygon.BaseUrl);
         });
 
-        services.AddHttpClient<IFundamentalsProvider, AlphaVantageFundamentalsProvider>(client =>
+        // Register AlphaVantage as the inner provider, then wrap with caching decorator
+        services.AddHttpClient<AlphaVantageFundamentalsProvider>(client =>
         {
             client.BaseAddress = new Uri(providerOptions.AlphaVantage.BaseUrl);
         });
+        services.AddScoped<IFundamentalsProvider>(sp =>
+            new CachedFundamentalsProvider(
+                sp.GetRequiredService<AlphaVantageFundamentalsProvider>(),
+                sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()));
 
         services.AddHttpClient<IEconomicDataProvider, FredEconomicDataProvider>(client =>
         {
