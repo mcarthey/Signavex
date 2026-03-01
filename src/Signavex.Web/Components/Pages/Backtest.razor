@@ -1,0 +1,126 @@
+@page "/backtest"
+@using Signavex.Domain.Enums
+@using Signavex.Domain.Helpers
+@using Signavex.Domain.Models
+@using Signavex.Web.Services
+@inject BacktestRunnerService BacktestService
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+@implements IDisposable
+
+<PageTitle>Signavex Backtest</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Backtest</h1>
+    <div class="d-flex align-items-center gap-2">
+        <label for="asOfDate" class="form-label mb-0">As-of date:</label>
+        <input type="date" id="asOfDate" class="form-control form-control-sm w-auto"
+               @bind="_asOfDate" max="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" />
+        <button class="btn btn-primary" @onclick="RunBacktest" disabled="@BacktestService.IsRunning">
+            @if (BacktestService.IsRunning)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <span>Running...</span>
+            }
+            else
+            {
+                <span>Run Backtest</span>
+            }
+        </button>
+    </div>
+</div>
+
+@if (BacktestService.LatestResult is not null)
+{
+    var result = BacktestService.LatestResult;
+
+    <div class="alert alert-info">
+        <strong>As-of @result.AsOfDate.ToString("yyyy-MM-dd")</strong> —
+        @result.Candidates.Count candidate(s) surfaced.
+        @if (result.Caveat is not null)
+        {
+            <br /><small class="text-muted">@result.Caveat</small>
+        }
+    </div>
+
+    <MarketContextBar Context="result.MarketContext" />
+
+    @if (result.Candidates.Count > 0)
+    {
+        <div class="mb-3">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCsv">
+                Export CSV
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Company</th>
+                        <th>Tier</th>
+                        <th class="text-center">Raw Score</th>
+                        <th class="text-center">Final Score</th>
+                        <th class="text-center">Signals</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var candidate in result.Candidates)
+                    {
+                        <tr>
+                            <td><strong>@candidate.Ticker</strong></td>
+                            <td>@candidate.CompanyName</td>
+                            <td><span class="badge bg-secondary">@candidate.Tier</span></td>
+                            <td class="text-center">@candidate.RawScore.ToString("F3")</td>
+                            <td class="text-center"><ScoreBadge Score="candidate.FinalScore" /></td>
+                            <td class="text-center">@candidate.SignalResults.Count(s => s.IsAvailable)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+else if (!BacktestService.IsRunning)
+{
+    <div class="alert alert-secondary">
+        Select a historical date and click <strong>Run Backtest</strong> to simulate a scan as of that date.
+    </div>
+}
+
+@code {
+    private DateTime _asOfDate = DateTime.Today.AddMonths(-1);
+
+    protected override void OnInitialized()
+    {
+        BacktestService.OnBacktestCompleted += OnBacktestCompleted;
+    }
+
+    private async Task RunBacktest()
+    {
+        var asOf = DateOnly.FromDateTime(_asOfDate);
+        await BacktestService.RunBacktestAsync(asOf);
+    }
+
+    private async Task ExportCsv()
+    {
+        var result = BacktestService.LatestResult;
+        if (result is null || result.Candidates.Count == 0)
+            return;
+
+        var csv = CsvExportHelper.GenerateCsv(result.Candidates);
+        var fileName = $"signavex-backtest-{result.AsOfDate:yyyy-MM-dd}.csv";
+        await JS.InvokeVoidAsync("downloadFile", fileName, csv);
+    }
+
+    private void OnBacktestCompleted()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        BacktestService.OnBacktestCompleted -= OnBacktestCompleted;
+    }
+}

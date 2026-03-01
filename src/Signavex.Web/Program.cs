@@ -26,6 +26,7 @@ builder.Services
 
 // Application services
 builder.Services.AddSingleton<ScanResultsService>();
+builder.Services.AddSingleton<BacktestRunnerService>();
 
 // Blazor
 builder.Services.AddRazorComponents()
