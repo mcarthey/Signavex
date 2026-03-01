@@ -45,19 +45,35 @@ public class ScanEngine
         _logger = logger;
     }
 
-    public Task<IReadOnlyList<StockCandidate>> RunScanAsync(CancellationToken cancellationToken = default)
-        => RunScanAsync(null, cancellationToken);
+    public Task<ScanRunResult> RunScanAsync(CancellationToken cancellationToken = default)
+        => RunScanAsync(null, null, null, cancellationToken);
 
-    public async Task<IReadOnlyList<StockCandidate>> RunScanAsync(
+    public Task<ScanRunResult> RunScanAsync(
         IProgress<ScanProgress>? progress,
         CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Starting Signavex scan at {Time}", DateTime.UtcNow);
+        => RunScanAsync(progress, null, null, cancellationToken);
 
-        // Step 1: Evaluate market context (Tier 1)
-        var macroIndicators = await _economicDataProvider.GetMacroIndicatorsAsync();
-        var spOhlcv = (await _marketDataProvider.GetDailyOhlcvAsync("SPY", OhlcvDays)).ToList().AsReadOnly();
-        var marketContext = await _marketEvaluator.EvaluateAsync(macroIndicators, spOhlcv);
+    public async Task<ScanRunResult> RunScanAsync(
+        IProgress<ScanProgress>? progress,
+        ScanResumeState? resumeState,
+        Func<string, StockCandidate?, Task>? onStockEvaluated,
+        CancellationToken cancellationToken = default)
+    {
+        // Step 1: Evaluate market context (Tier 1) — or reuse from resume state
+        MarketContext marketContext;
+        if (resumeState is not null)
+        {
+            marketContext = resumeState.MarketContext;
+            _logger.LogInformation("Resuming scan with existing market context (multiplier: {Multiplier:F2})",
+                marketContext.Multiplier);
+        }
+        else
+        {
+            _logger.LogInformation("Starting Signavex scan at {Time}", DateTime.UtcNow);
+            var macroIndicators = await _economicDataProvider.GetMacroIndicatorsAsync();
+            var spOhlcv = (await _marketDataProvider.GetDailyOhlcvAsync("SPY", OhlcvDays)).ToList().AsReadOnly();
+            marketContext = await _marketEvaluator.EvaluateAsync(macroIndicators, spOhlcv);
+        }
 
         _logger.LogInformation("Market context: {Summary} (multiplier: {Multiplier:F2})",
             marketContext.Summary, marketContext.Multiplier);
@@ -67,16 +83,21 @@ public class ScanEngine
         _logger.LogInformation("Scanning {Count} stocks", universe.Count);
 
         // Step 3: Evaluate each stock (Tier 2)
-        var candidates = new List<StockCandidate>();
-        var errorCount = 0;
-        var evaluated = 0;
+        var candidates = resumeState?.CandidatesSoFar ?? new List<StockCandidate>();
+        var errorCount = resumeState?.PriorErrorCount ?? 0;
+        var evaluated = resumeState?.AlreadyEvaluatedTickers.Count ?? 0;
 
         foreach (var (ticker, tier) in universe)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Skip already-evaluated tickers on resume
+            if (resumeState?.AlreadyEvaluatedTickers.Contains(ticker) == true)
+                continue;
+
             progress?.Report(new ScanProgress(evaluated, universe.Count, ticker, errorCount));
 
+            StockCandidate? candidate = null;
             try
             {
                 var ohlcv = (await _marketDataProvider.GetDailyOhlcvAsync(ticker, OhlcvDays)).ToList().AsReadOnly();
@@ -84,7 +105,7 @@ public class ScanEngine
                 var fundamentals = await _fundamentalsProvider.GetFundamentalsAsync(ticker);
 
                 var stockData = new StockData(ticker, ticker, ohlcv, fundamentals, news);
-                var candidate = await _stockEvaluator.EvaluateAsync(stockData, marketContext, tier);
+                candidate = await _stockEvaluator.EvaluateAsync(stockData, marketContext, tier);
 
                 if (candidate is not null)
                 {
@@ -99,11 +120,16 @@ public class ScanEngine
             }
 
             evaluated++;
+
+            if (onStockEvaluated is not null)
+                await onStockEvaluated(ticker, candidate);
         }
 
         progress?.Report(new ScanProgress(evaluated, universe.Count, "", errorCount));
 
         _logger.LogInformation("Scan complete. {Count} candidates surfaced, {Errors} errors.", candidates.Count, errorCount);
-        return candidates.OrderByDescending(c => c.FinalScore).ToList().AsReadOnly();
+
+        var sortedCandidates = candidates.OrderByDescending(c => c.FinalScore).ToList().AsReadOnly();
+        return new ScanRunResult(marketContext, sortedCandidates, evaluated, errorCount);
     }
 }

@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Signavex.Domain.Configuration;
 using Signavex.Engine;
 using Signavex.Infrastructure;
+using Signavex.Infrastructure.Persistence;
 using Signavex.Signals;
 using Signavex.Web.Components;
 using Signavex.Web.Services;
@@ -18,22 +20,36 @@ var providerOptions = builder.Configuration
     .GetSection(DataProviderOptions.SectionName)
     .Get<DataProviderOptions>() ?? new DataProviderOptions();
 
+var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "data");
+
 // Register domain layers
 builder.Services
     .AddSignavexSignals()
     .AddSignavexEngine()
-    .AddSignavexInfrastructure(providerOptions);
+    .AddSignavexInfrastructure(providerOptions, dataDirectory);
 
 // Application services
 builder.Services.AddSingleton<ScanResultsService>();
 builder.Services.AddSingleton<BacktestRunnerService>();
 builder.Services.AddSingleton<ApiKeyValidationService>();
 
+// Background services
+builder.Services.AddHostedService<ScanResumeBackgroundService>();
+builder.Services.AddHostedService<DailyScanBackgroundService>();
+
 // Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var app = builder.Build();
+
+// Auto-migrate SQLite database
+using (var scope = app.Services.CreateScope())
+{
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
+    using var db = await factory.CreateDbContextAsync();
+    await db.Database.MigrateAsync();
+}
 
 if (!app.Environment.IsDevelopment())
 {

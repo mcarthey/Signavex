@@ -17,4 +17,5 @@ public class ApiProviderOptions
 {
     public string ApiKey { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
+    public int MaxRequestsPerMinute { get; set; }
 }

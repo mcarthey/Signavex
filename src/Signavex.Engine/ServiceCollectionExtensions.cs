@@ -15,7 +15,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UniverseProvider>();
         services.AddScoped<ScanEngine>();
         services.AddScoped<BacktestService>();
-        services.AddHostedService<DailyScanBackgroundService>();
 
         return services;
     }

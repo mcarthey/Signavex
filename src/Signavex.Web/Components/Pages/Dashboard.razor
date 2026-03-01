@@ -28,10 +28,10 @@
             }
         </div>
         <div class="flex items-center gap-2">
-            @if (ScanService.LatestResults.Count > 0)
+            @if (DisplayResults.Any())
             {
                 <button class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-outline px-3 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container"
-                        @onclick="ExportCsv">
+                        @@onclick="ExportCsv">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                     </svg>
@@ -39,7 +39,7 @@
                 </button>
             }
             <button class="inline-flex items-center gap-2 rounded-[var(--radius-xl)] bg-primary px-5 py-2.5 text-sm font-medium text-on-primary shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    @onclick="RunScan" disabled="@ScanService.IsScanning">
+                    @@onclick="RunScan" disabled="@@ScanService.IsScanning">
                 @if (ScanService.IsScanning)
                 {
                     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -79,19 +79,42 @@
     @if (ScanService.IsScanning && ScanService.CurrentProgress is not null)
     {
         var p = ScanService.CurrentProgress;
+        var enhanced = p as EnhancedScanProgress;
         <div class="mb-4 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
             <div class="flex items-center justify-between text-sm mb-2">
-                <span class="font-medium text-on-surface">Evaluating @p.CurrentTicker</span>
-                <span class="text-on-surface-variant">@p.Evaluated / @p.Total</span>
+                <span class="font-medium text-on-surface">
+                    @if (enhanced?.IsResuming == true)
+                    {
+                        <span class="inline-flex items-center gap-1.5 rounded-[var(--radius-xs)] bg-primary-container text-on-primary-container px-2 py-0.5 text-xs font-medium mr-2">Resumed</span>
+                    }
+                    Evaluating @p.CurrentTicker
+                </span>
+                <span class="text-on-surface-variant">
+                    @p.Evaluated / @p.Total
+                    @if (enhanced?.EstimatedTimeRemaining is { } eta)
+                    {
+                        <span> · ~@FormatEta(eta) remaining</span>
+                    }
+                </span>
             </div>
             <div class="h-2 w-full rounded-[var(--radius-full)] bg-surface-container-high overflow-hidden">
                 <div class="h-full rounded-[var(--radius-full)] bg-primary transition-all duration-300 animate-pulse-bar"
                      style="width: @(p.Total > 0 ? (p.Evaluated * 100 / p.Total) : 0)%"></div>
             </div>
-            @if (p.ErrorCount > 0)
-            {
-                <p class="text-xs text-warning mt-1.5">@p.ErrorCount error(s) so far</p>
-            }
+            <div class="flex items-center justify-between mt-1.5">
+                @if (p.ErrorCount > 0)
+                {
+                    <p class="text-xs text-warning">@p.ErrorCount error(s) so far</p>
+                }
+                else
+                {
+                    <span></span>
+                }
+                @if (enhanced?.CandidatesFound > 0)
+                {
+                    <p class="text-xs text-success font-medium">@enhanced.CandidatesFound candidate(s) found</p>
+                }
+            </div>
         </div>
     }
 
@@ -99,7 +122,7 @@
     <MarketContextBar Context="ScanService.LatestMarketContext" />
 
     @* Results *@
-    @if (ScanService.LatestResults.Count == 0 && !ScanService.IsScanning)
+    @if (!DisplayResults.Any() && !ScanService.IsScanning)
     {
         <div class="flex flex-col items-center justify-center py-16 text-center">
             <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
@@ -113,8 +136,16 @@
             </p>
         </div>
     }
-    else if (ScanService.LatestResults.Count > 0)
+    else if (DisplayResults.Any())
     {
+        @if (ScanService.IsScanning)
+        {
+            <h3 class="text-sm font-semibold text-on-surface-variant mb-3 flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full bg-success animate-pulse"></span>
+                Candidates Found So Far (@DisplayResults.Count())
+            </h3>
+        }
+
         @* Filter chips *@
         <div class="flex flex-wrap items-center gap-2 mb-4">
             <button class="@ChipCss(_tierFilter == "")" @onclick='() => _tierFilter = ""'>All Tiers</button>
@@ -152,7 +183,7 @@
         </div>
 
         <p class="mt-3 text-xs text-on-surface-variant">
-            @FilteredResults.Count() of @ScanService.LatestResults.Count candidates shown
+            @FilteredResults.Count() of @DisplayResults.Count() candidates shown
         </p>
     }
 </div>
@@ -161,17 +192,34 @@
     private string _tierFilter = "";
     private string _sortBy = "score";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         ScanService.OnScanCompleted += OnScanCompleted;
         ScanService.OnProgressChanged += OnProgressChanged;
+        ScanService.OnCandidateFound += OnCandidateFound;
+
+        await ScanService.EnsureInitializedAsync();
+    }
+
+    /// <summary>
+    /// Returns live candidates during scan, or completed results when idle.
+    /// </summary>
+    private IEnumerable<StockCandidate> DisplayResults
+    {
+        get
+        {
+            if (ScanService.IsScanning && ScanService.LiveCandidates.Count > 0)
+                return ScanService.LiveCandidates;
+
+            return ScanService.LatestResults;
+        }
     }
 
     private IEnumerable<StockCandidate> FilteredResults
     {
         get
         {
-            var results = ScanService.LatestResults.AsEnumerable();
+            var results = DisplayResults;
 
             if (!string.IsNullOrEmpty(_tierFilter) && Enum.TryParse<MarketTier>(_tierFilter, out var tier))
                 results = results.Where(c => c.Tier == tier);
@@ -194,23 +242,18 @@
 
     private async Task ExportCsv()
     {
-        if (ScanService.LatestResults.Count == 0)
+        var results = ScanService.LatestResults;
+        if (results.Count == 0)
             return;
 
-        var csv = CsvExportHelper.GenerateCsv(ScanService.LatestResults);
+        var csv = CsvExportHelper.GenerateCsv(results);
         var fileName = $"signavex-scan-{DateTime.UtcNow:yyyy-MM-dd}.csv";
         await JS.InvokeVoidAsync("downloadFile", fileName, csv);
     }
 
-    private void OnScanCompleted()
-    {
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void OnProgressChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
+    private void OnScanCompleted() => InvokeAsync(StateHasChanged);
+    private void OnProgressChanged() => InvokeAsync(StateHasChanged);
+    private void OnCandidateFound() => InvokeAsync(StateHasChanged);
 
     private static string RelativeTime(DateTime utcTime)
     {
@@ -221,6 +264,13 @@
         return $"{(int)elapsed.TotalDays}d ago";
     }
 
+    private static string FormatEta(TimeSpan eta)
+    {
+        if (eta.TotalMinutes < 1) return "<1m";
+        if (eta.TotalHours < 1) return $"{(int)eta.TotalMinutes}m";
+        return $"{(int)eta.TotalHours}h {eta.Minutes}m";
+    }
+
     private static string ChipCss(bool active) => active
         ? "rounded-[var(--radius-sm)] bg-primary text-on-primary px-3 py-1.5 text-xs font-medium transition-colors"
         : "rounded-[var(--radius-sm)] bg-surface-container text-on-surface-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container-high";
@@ -229,5 +279,6 @@
     {
         ScanService.OnScanCompleted -= OnScanCompleted;
         ScanService.OnProgressChanged -= OnProgressChanged;
+        ScanService.OnCandidateFound -= OnCandidateFound;
     }
 }

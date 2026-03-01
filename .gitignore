@@ -420,3 +420,10 @@ FodyWeavers.xsd
 # Tailwind CSS
 src/Signavex.Web/.tailwind/
 src/Signavex.Web/wwwroot/css/app.built.css
+
+# Scan data files (checkpoints and results)
+src/Signavex.Web/data/
+
+# Environment-specific settings (contain API keys)
+**/appsettings.Development.json
+**/appsettings.Production.json

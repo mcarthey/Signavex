@@ -64,11 +64,11 @@ public class ScanEngineTests
             economicProvider.Object, marketEvaluator, stockEvaluator, universeProvider,
             NullLogger<ScanEngine>.Instance);
 
-        var candidates = await engine.RunScanAsync();
+        var result = await engine.RunScanAsync();
 
-        Assert.Single(candidates);
-        Assert.Equal("AAPL", candidates[0].Ticker);
-        Assert.True(candidates[0].FinalScore >= 0.65);
+        Assert.Single(result.Candidates);
+        Assert.Equal("AAPL", result.Candidates[0].Ticker);
+        Assert.True(result.Candidates[0].FinalScore >= 0.65);
     }
 
     [Fact]
@@ -109,8 +109,8 @@ public class ScanEngineTests
             economicProvider.Object, marketEvaluator, stockEvaluator, universeProvider,
             NullLogger<ScanEngine>.Instance);
 
-        var candidates = await engine.RunScanAsync();
+        var result = await engine.RunScanAsync();
 
-        Assert.Empty(candidates);
+        Assert.Empty(result.Candidates);
     }
 }
