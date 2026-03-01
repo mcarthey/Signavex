@@ -34,7 +34,7 @@ public class SqliteScanStateStore : IScanStateStore
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
 
         var payload = JsonSerializer.Serialize(checkpoint, JsonOptions);
-        var existing = await db.ScanCheckpoints.FirstOrDefaultAsync(ct);
+        var existing = await db.ScanCheckpoints.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
 
         if (existing is not null)
         {
@@ -62,7 +62,7 @@ public class SqliteScanStateStore : IScanStateStore
     public async Task<ScanCheckpoint?> LoadCheckpointAsync(CancellationToken ct = default)
     {
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
-        var entity = await db.ScanCheckpoints.AsNoTracking().FirstOrDefaultAsync(ct);
+        var entity = await db.ScanCheckpoints.AsNoTracking().OrderByDescending(x => x.UpdatedAtUtc).FirstOrDefaultAsync(ct);
 
         if (entity is null)
             return null;
