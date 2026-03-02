@@ -32,5 +32,5 @@ internal class PolygonAggregateResult
     public decimal Close { get; set; }
 
     [JsonPropertyName("v")]
-    public long Volume { get; set; }
+    public double Volume { get; set; }
 }

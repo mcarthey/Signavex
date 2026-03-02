@@ -54,7 +54,7 @@ public class PolygonMarketDataProvider : IMarketDataProvider
                 r.High,
                 r.Low,
                 r.Close,
-                r.Volume
+                (long)r.Volume
             ));
         }
         catch (Exception ex)
