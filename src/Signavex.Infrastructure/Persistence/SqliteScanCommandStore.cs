@@ -35,11 +35,23 @@ public class SqliteScanCommandStore : IScanCommandStore
 
     public async Task<ScanCommand?> DequeueCommandAsync(CancellationToken ct = default)
     {
+        return await DequeueCommandInternalAsync(null, ct);
+    }
+
+    public async Task<ScanCommand?> DequeueCommandAsync(string commandType, CancellationToken ct = default)
+    {
+        return await DequeueCommandInternalAsync(commandType, ct);
+    }
+
+    private async Task<ScanCommand?> DequeueCommandInternalAsync(string? commandType, CancellationToken ct)
+    {
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
 
-        // Atomic dequeue: find oldest unpicked command and claim it
-        var entity = await db.ScanCommands
-            .Where(c => c.PickedUpAtUtc == null)
+        var query = db.ScanCommands.Where(c => c.PickedUpAtUtc == null);
+        if (commandType is not null)
+            query = query.Where(c => c.CommandType == commandType);
+
+        var entity = await query
             .OrderBy(c => c.RequestedAtUtc)
             .FirstOrDefaultAsync(ct);
 
@@ -77,5 +89,12 @@ public class SqliteScanCommandStore : IScanCommandStore
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
         return await db.ScanCommands
             .AnyAsync(c => c.PickedUpAtUtc == null, ct);
+    }
+
+    public async Task<bool> HasPendingCommandAsync(string commandType, CancellationToken ct = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        return await db.ScanCommands
+            .AnyAsync(c => c.PickedUpAtUtc == null && c.CommandType == commandType, ct);
     }
 }

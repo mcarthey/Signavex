@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Signavex.Infrastructure.Persistence;
 
@@ -10,52 +11,14 @@ using Signavex.Infrastructure.Persistence;
 namespace Signavex.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SignavexDbContext))]
-    partial class SignavexDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260302171643_AddEconomicDataSchema")]
+    partial class AddEconomicDataSchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.12");
-
-            modelBuilder.Entity("Signavex.Infrastructure.Persistence.Entities.DailyBriefEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("CandidateCount")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("EconomicHealthScore")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("GeneratedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MarketOutlook")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ScanId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Date")
-                        .IsUnique();
-
-                    b.ToTable("DailyBriefs", (string)null);
-                });
 
             modelBuilder.Entity("Signavex.Infrastructure.Persistence.Entities.EconomicObservationEntity", b =>
                 {

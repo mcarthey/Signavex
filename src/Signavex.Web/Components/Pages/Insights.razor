@@ -1,0 +1,220 @@
+@page "/insights"
+@page "/insights/{DateParam?}"
+@using Markdig
+@using Signavex.Domain.Models
+@using Signavex.Web.Services
+@inject DailyBriefService BriefService
+@implements IDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Daily Insights — Signavex</PageTitle>
+
+<div class="animate-fade-in">
+    @* Header *@
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-on-surface tracking-tight">Daily Insights</h1>
+            @if (_brief is not null)
+            {
+                <div class="flex items-center gap-3 mt-1">
+                    <p class="text-sm text-on-surface-variant">
+                        @_brief.Date.ToString("MMMM d, yyyy")
+                    </p>
+                    @if (_brief.EconomicHealthScore.HasValue)
+                    {
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full @GetHealthClass(_brief.EconomicHealthScore.Value)">
+                            Health: @_brief.EconomicHealthScore/100
+                        </span>
+                    }
+                    @if (_brief.CandidateCount > 0)
+                    {
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                            @_brief.CandidateCount candidate@(_brief.CandidateCount != 1 ? "s" : "")
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+        <button @onclick="RequestGeneration" disabled="@_generating"
+                class="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-elevation-1 transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
+            @if (_generating)
+            {
+                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Generating...</span>
+            }
+            else
+            {
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                </svg>
+                <span>Generate Now</span>
+            }
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="flex items-center justify-center py-16">
+            <div class="flex flex-col items-center gap-3">
+                <svg class="h-8 w-8 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-sm text-on-surface-variant">Loading insights...</p>
+            </div>
+        </div>
+    }
+    else if (_brief is null)
+    {
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-8 text-center">
+            <svg class="h-12 w-12 mx-auto text-on-surface-variant/40 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+            </svg>
+            <h3 class="text-lg font-semibold text-on-surface mb-2">No Insights Yet</h3>
+            <p class="text-sm text-on-surface-variant max-w-md mx-auto">
+                Daily insights are generated automatically at 5:10 PM ET after the stock scan completes,
+                or you can click <strong>Generate Now</strong> above. The Worker service must be running to process requests.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            @* Main content *@
+            <div class="lg:col-span-9">
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6 sm:p-8">
+                    <article class="prose prose-invert prose-sm sm:prose-base max-w-none
+                                    prose-headings:text-on-surface prose-p:text-on-surface/90
+                                    prose-strong:text-on-surface prose-a:text-primary
+                                    prose-li:text-on-surface/90 prose-hr:border-outline-variant
+                                    prose-h1:text-xl prose-h1:mb-4 prose-h2:text-lg prose-h2:mt-6 prose-h2:mb-3
+                                    prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
+                        @((MarkupString)RenderMarkdown(_brief.Content))
+                    </article>
+                </div>
+            </div>
+
+            @* Sidebar: archive *@
+            <div class="lg:col-span-3">
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4 sticky top-4">
+                    <h3 class="text-sm font-semibold text-on-surface mb-3">Archive</h3>
+                    @if (_recentBriefs.Count == 0)
+                    {
+                        <p class="text-xs text-on-surface-variant">No past briefs yet.</p>
+                    }
+                    else
+                    {
+                        <div class="flex flex-col gap-1">
+                            @foreach (var past in _recentBriefs)
+                            {
+                                var isActive = _brief.Date == past.Date;
+                                <a href="/insights/@past.Date.ToString("yyyy-MM-dd")"
+                                   class="no-underline block rounded-[var(--radius-sm)] px-3 py-2 transition-colors @(isActive ? "bg-primary/15 text-primary" : "text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface")">
+                                    <p class="text-xs font-medium">@past.Date.ToString("MMM d, yyyy")</p>
+                                    <p class="text-xs mt-0.5 line-clamp-1 opacity-75">@past.Title</p>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? DateParam { get; set; }
+
+    private bool _loading = true;
+    private bool _generating;
+    private Timer? _pollTimer;
+    private DailyBrief? _brief;
+    private IReadOnlyList<DailyBrief> _recentBriefs = Array.Empty<DailyBrief>();
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .DisableHtml()
+        .UseAdvancedExtensions()
+        .Build();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+        _loading = false;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_loading)
+        {
+            await LoadDataAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _recentBriefs = await BriefService.GetRecentBriefsAsync(30);
+
+        if (!string.IsNullOrEmpty(DateParam) && DateOnly.TryParse(DateParam, out var date))
+        {
+            _brief = await BriefService.GetBriefByDateAsync(date);
+        }
+        else
+        {
+            _brief = await BriefService.GetLatestBriefAsync();
+        }
+    }
+
+    private async Task RequestGeneration()
+    {
+        _generating = true;
+        await BriefService.RequestGenerationAsync();
+
+        // Poll for completion every 5 seconds
+        _pollTimer = new Timer(async _ => await PollGenerationProgress(), null,
+            TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private async Task PollGenerationProgress()
+    {
+        try
+        {
+            var latest = await BriefService.GetLatestBriefAsync();
+            if (latest is not null && (_brief is null || latest.GeneratedAtUtc > (_brief?.GeneratedAtUtc ?? DateTime.MinValue)))
+            {
+                _pollTimer?.Dispose();
+                _pollTimer = null;
+                _generating = false;
+
+                await LoadDataAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch
+        {
+            // Ignore polling errors — will retry on next tick
+        }
+    }
+
+    private static string RenderMarkdown(string markdown)
+    {
+        return Markdown.ToHtml(markdown, Pipeline);
+    }
+
+    private static string GetHealthClass(int score) => score switch
+    {
+        >= 80 => "bg-primary/15 text-primary",
+        >= 60 => "bg-primary/10 text-primary/80",
+        >= 40 => "bg-warning/15 text-warning",
+        _ => "bg-error/15 text-error"
+    };
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+    }
+}

@@ -1,0 +1,38 @@
+@* SVG circular gauge showing economic health (0-100) *@
+
+<div class="flex flex-col items-center">
+    <svg width="@Size" height="@Size" viewBox="0 0 120 120">
+        @* Background circle *@
+        <circle cx="60" cy="60" r="50" fill="none"
+                stroke="var(--color-outline-variant)" stroke-width="10" opacity="0.2"/>
+        @* Progress arc *@
+        <circle cx="60" cy="60" r="50" fill="none"
+                stroke="@GetColor()" stroke-width="10"
+                stroke-dasharray="@DashArray" stroke-dashoffset="@DashOffset"
+                stroke-linecap="round" transform="rotate(-90 60 60)"/>
+        @* Score text *@
+        <text x="60" y="55" text-anchor="middle" class="text-2xl font-bold"
+              fill="var(--color-on-surface)">@Score</text>
+        <text x="60" y="72" text-anchor="middle" class="text-xs"
+              fill="var(--color-on-surface-variant)">@Label</text>
+    </svg>
+</div>
+
+@code {
+    [Parameter] public int Score { get; set; }
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public int Size { get; set; } = 160;
+
+    private double Circumference => 2 * Math.PI * 50;
+    private string DashArray => $"{Circumference:F1}";
+    private string DashOffset => $"{Circumference * (1 - Score / 100.0):F1}";
+
+    private string GetColor() => Score switch
+    {
+        >= 80 => "var(--color-primary)",
+        >= 65 => "#43e97b",
+        >= 50 => "#f5c542",
+        >= 35 => "#f59e42",
+        _ => "var(--color-error)"
+    };
+}

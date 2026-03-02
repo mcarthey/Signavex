@@ -11,6 +11,10 @@ public class SignavexDbContext : DbContext
     public DbSet<ScanCandidateEntity> ScanCandidates => Set<ScanCandidateEntity>();
     public DbSet<ScanCheckpointEntity> ScanCheckpoints => Set<ScanCheckpointEntity>();
     public DbSet<ScanCommandEntity> ScanCommands => Set<ScanCommandEntity>();
+    public DbSet<EconomicSeriesEntity> EconomicSeries => Set<EconomicSeriesEntity>();
+    public DbSet<EconomicObservationEntity> EconomicObservations => Set<EconomicObservationEntity>();
+    public DbSet<EconomicSyncTrackerEntity> EconomicSyncTrackers => Set<EconomicSyncTrackerEntity>();
+    public DbSet<DailyBriefEntity> DailyBriefs => Set<DailyBriefEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,6 +50,41 @@ public class SignavexDbContext : DbContext
             e.ToTable("ScanCommands");
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.RequestedAtUtc);
+        });
+
+        modelBuilder.Entity<EconomicSeriesEntity>(e =>
+        {
+            e.ToTable("EconomicSeries");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.SeriesId).IsRequired();
+            e.HasIndex(x => x.SeriesId).IsUnique();
+            e.HasMany(x => x.Observations)
+                .WithOne(x => x.Series)
+                .HasForeignKey(x => x.SeriesId)
+                .HasPrincipalKey(x => x.SeriesId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EconomicObservationEntity>(e =>
+        {
+            e.ToTable("EconomicObservations");
+            e.HasKey(x => new { x.SeriesId, x.Date });
+            e.HasIndex(x => x.SeriesId);
+        });
+
+        modelBuilder.Entity<EconomicSyncTrackerEntity>(e =>
+        {
+            e.ToTable("EconomicSyncTrackers");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.SeriesId).IsRequired();
+            e.HasIndex(x => x.SeriesId).IsUnique();
+        });
+
+        modelBuilder.Entity<DailyBriefEntity>(e =>
+        {
+            e.ToTable("DailyBriefs");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Date).IsUnique();
         });
     }
 }

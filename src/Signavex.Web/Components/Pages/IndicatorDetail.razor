@@ -1,0 +1,232 @@
+@page "/economy/{SeriesId}"
+@using Signavex.Domain.Analysis
+@using Signavex.Domain.Models.Economic
+@using Signavex.Web.Services
+@using Signavex.Web.Components.Shared
+@inject EconomicDashboardService EconService
+@rendermode InteractiveServer
+
+<PageTitle>@(_series?.Name ?? SeriesId) — Signavex</PageTitle>
+
+<div class="animate-fade-in">
+    @* Back link *@
+    <a href="/economy" class="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4 no-underline">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        Back to Economy
+    </a>
+
+    @if (_loading)
+    {
+        <div class="flex items-center justify-center py-16">
+            <svg class="h-8 w-8 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    }
+    else if (_series is null)
+    {
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-8 text-center">
+            <h3 class="text-lg font-semibold text-on-surface mb-2">Indicator Not Found</h3>
+            <p class="text-sm text-on-surface-variant">No data available for series "@SeriesId".</p>
+        </div>
+    }
+    else
+    {
+        @* Header *@
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-on-surface tracking-tight">@_series.Name</h1>
+            <p class="text-sm text-on-surface-variant mt-1">@_series.SeriesId · @_series.Frequency · @_series.Units</p>
+        </div>
+
+        @* Current stats *@
+        @if (_interpretation is not null)
+        {
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4">
+                    <p class="text-xs text-on-surface-variant mb-1">Current</p>
+                    <p class="text-xl font-bold text-on-surface">@_interpretation.FormattedValue</p>
+                </div>
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4">
+                    <p class="text-xs text-on-surface-variant mb-1">Previous</p>
+                    <p class="text-xl font-bold text-on-surface">@FormatPrevious()</p>
+                </div>
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4">
+                    <p class="text-xs text-on-surface-variant mb-1">Change</p>
+                    <p class="text-xl font-bold @GetChangeColor()">
+                        @GetTrendArrow(_interpretation.TrendDirection) @_interpretation.FormattedChange
+                    </p>
+                </div>
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4">
+                    <p class="text-xs text-on-surface-variant mb-1">Status</p>
+                    <span class="text-sm font-medium px-2 py-0.5 rounded-full @GetSentimentClass(_interpretation.Sentiment)">
+                        @_interpretation.CurrentAssessment
+                    </span>
+                </div>
+            </div>
+        }
+
+        @* Time series chart *@
+        <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4">
+            <h2 class="text-sm font-semibold text-on-surface mb-3">Historical Data</h2>
+            <TimeSeriesChart Observations="_observations" Height="240" ChartWidth="800" />
+        </div>
+
+        @* Context + Benchmarks *@
+        @if (_metadata is not null)
+        {
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                @* Context *@
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6">
+                    <h2 class="text-sm font-semibold text-on-surface mb-3">What This Measures</h2>
+                    <p class="text-sm text-on-surface-variant mb-3">@_metadata.WhatItMeans</p>
+                    <h3 class="text-xs font-semibold text-on-surface-variant uppercase mb-1">Why It Matters</h3>
+                    <p class="text-sm text-on-surface-variant mb-3">@_metadata.WhyItMatters</p>
+                    <h3 class="text-xs font-semibold text-on-surface-variant uppercase mb-1">What Drives This</h3>
+                    <p class="text-sm text-on-surface-variant mb-3">@_metadata.WhatDrivesThis</p>
+                    <h3 class="text-xs font-semibold text-on-surface-variant uppercase mb-1">Healthy Range</h3>
+                    <p class="text-sm text-on-surface-variant">@_metadata.GoodRange</p>
+                </div>
+
+                @* Benchmarks *@
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6">
+                    <h2 class="text-sm font-semibold text-on-surface mb-3">Benchmark Thresholds</h2>
+                    <div class="flex flex-col">
+                        @if (_metadata.PreCovidAvg.HasValue)
+                        {
+                            <div class="flex items-center justify-between py-2 border-b border-outline-variant/20">
+                                <span class="text-xs text-on-surface-variant">Pre-COVID Average</span>
+                                <span class="text-sm font-medium text-on-surface">@FormatBenchmark(_metadata.PreCovidAvg.Value)</span>
+                            </div>
+                        }
+                        @if (_metadata.HistoricalAvg.HasValue)
+                        {
+                            <div class="flex items-center justify-between py-2 border-b border-outline-variant/20">
+                                <span class="text-xs text-on-surface-variant">Historical Average</span>
+                                <span class="text-sm font-medium text-on-surface">@FormatBenchmark(_metadata.HistoricalAvg.Value)</span>
+                            </div>
+                        }
+                        @if (_metadata.RecessionLevel.HasValue)
+                        {
+                            <div class="flex items-center justify-between py-2 border-b border-outline-variant/20">
+                                <span class="text-xs text-on-surface-variant">Recession Level</span>
+                                <span class="text-sm font-medium text-on-surface">@FormatBenchmark(_metadata.RecessionLevel.Value)</span>
+                            </div>
+                        }
+                        @if (_metadata.ExpansionLevel.HasValue)
+                        {
+                            <div class="flex items-center justify-between py-2">
+                                <span class="text-xs text-on-surface-variant">Expansion Level</span>
+                                <span class="text-sm font-medium text-on-surface">@FormatBenchmark(_metadata.ExpansionLevel.Value)</span>
+                            </div>
+                        }
+                    </div>
+
+                    @if (_interpretation?.BenchmarkComparison is not null)
+                    {
+                        <div class="mt-4 p-3 rounded-[var(--radius-sm)] bg-surface-container-highest">
+                            <p class="text-xs text-on-surface-variant">@_interpretation.BenchmarkComparison</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* Implications *@
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="rounded-[var(--radius-md)] border border-primary/20 bg-primary/5 p-6">
+                    <h3 class="text-sm font-semibold text-on-surface mb-2">When Rising</h3>
+                    <p class="text-sm text-on-surface-variant">@_metadata.ImplicationsRising</p>
+                </div>
+                <div class="rounded-[var(--radius-md)] border border-error/20 bg-error/5 p-6">
+                    <h3 class="text-sm font-semibold text-on-surface mb-2">When Falling</h3>
+                    <p class="text-sm text-on-surface-variant">@_metadata.ImplicationsFalling</p>
+                </div>
+            </div>
+        }
+
+        @* Related correlations *@
+        @if (_relatedCorrelations.Count > 0)
+        {
+            <div class="mb-6">
+                <h2 class="text-lg font-semibold text-on-surface mb-3">Related Correlation Patterns</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    @foreach (var pattern in _relatedCorrelations)
+                    {
+                        <CorrelationCard Pattern="pattern" />
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string SeriesId { get; set; } = "";
+
+    private bool _loading = true;
+    private EconomicSeries? _series;
+    private IReadOnlyList<EconomicObservation> _observations = Array.Empty<EconomicObservation>();
+    private IndicatorInterpretation? _interpretation;
+    private IndicatorMetadataEntry? _metadata;
+    private IReadOnlyList<CorrelationPattern> _relatedCorrelations = Array.Empty<CorrelationPattern>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var detail = await EconService.GetIndicatorDetailAsync(SeriesId);
+        if (detail.HasValue)
+        {
+            _series = detail.Value.Series;
+            _observations = detail.Value.Observations;
+
+            if (_observations.Count >= 2)
+            {
+                var analysisService = new EconomicAnalysisService();
+                _interpretation = analysisService.AnalyzeIndicator(_series, _observations);
+            }
+
+            _metadata = IndicatorMetadata.Get(SeriesId);
+
+            // Get related correlations
+            var correlations = await EconService.GetCorrelationsAsync();
+            if (correlations is not null)
+            {
+                _relatedCorrelations = correlations.Patterns
+                    .Where(p => p.Indicators.Contains(SeriesId, StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+
+        _loading = false;
+    }
+
+    private string FormatPrevious()
+    {
+        if (_interpretation?.PreviousValue is null) return "N/A";
+        return _interpretation.PreviousValue.Value.ToString("N2");
+    }
+
+    private string FormatBenchmark(double value) => value.ToString("N2");
+
+    private string GetChangeColor() => _interpretation?.Sentiment switch
+    {
+        "positive" => "text-primary",
+        "negative" => "text-error",
+        _ => "text-on-surface-variant"
+    };
+
+    private static string GetTrendArrow(string trend) => trend switch
+    {
+        "up" => "\u2191",
+        "down" => "\u2193",
+        _ => "\u2192"
+    };
+
+    private static string GetSentimentClass(string sentiment) => sentiment switch
+    {
+        "positive" => "bg-primary/15 text-primary",
+        "negative" => "bg-error/15 text-error",
+        _ => "bg-outline-variant/30 text-on-surface-variant"
+    };
+}

@@ -175,6 +175,17 @@ public class WorkerScanOrchestrator
 
             _logger.LogInformation("Scan {ScanId} completed: {Count} candidates, {Errors} errors",
                 scanId, result.Candidates.Count, result.ErrorCount);
+
+            // Trigger daily brief generation after successful scan
+            try
+            {
+                await _commandStore.EnqueueCommandAsync(DailyBriefBackgroundService.CommandType, CancellationToken.None);
+                _logger.LogInformation("Enqueued daily brief generation after scan {ScanId}", scanId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enqueue daily brief generation after scan {ScanId}", scanId);
+            }
         }
         catch (OperationCanceledException)
         {

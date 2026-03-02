@@ -38,6 +38,8 @@ builder.Services
 builder.Services.AddSingleton<ScanDashboardService>();
 builder.Services.AddSingleton<BacktestRunnerService>();
 builder.Services.AddSingleton<ApiKeyValidationService>();
+builder.Services.AddSingleton<EconomicDashboardService>();
+builder.Services.AddSingleton<DailyBriefService>();
 
 // Blazor
 builder.Services.AddRazorComponents()
@@ -45,7 +47,7 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
-// Auto-migrate SQLite database
+// Auto-migrate SQLite database and seed economic data
 using (var scope = app.Services.CreateScope())
 {
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
@@ -53,6 +55,9 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
     await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
+
+    var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("EconomicDataSeeder");
+    await EconomicDataSeeder.SeedAsync(factory, seedLogger);
 }
 
 if (!app.Environment.IsDevelopment())

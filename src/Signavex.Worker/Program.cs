@@ -20,6 +20,9 @@ builder.Services.Configure<SignavexOptions>(
 builder.Services.Configure<DataProviderOptions>(
     builder.Configuration.GetSection(DataProviderOptions.SectionName));
 
+builder.Services.Configure<AnthropicOptions>(
+    builder.Configuration.GetSection(AnthropicOptions.SectionName));
+
 var providerOptions = builder.Configuration
     .GetSection(DataProviderOptions.SectionName)
     .Get<DataProviderOptions>() ?? new DataProviderOptions();
@@ -43,10 +46,12 @@ builder.Services.AddSingleton<WorkerScanOrchestrator>();
 builder.Services.AddHostedService<ScanCommandPollingService>();
 builder.Services.AddHostedService<ScanResumeBackgroundService>();
 builder.Services.AddHostedService<DailyScanBackgroundService>();
+builder.Services.AddHostedService<EconomicDataSyncService>();
+builder.Services.AddHostedService<DailyBriefBackgroundService>();
 
 var host = builder.Build();
 
-// Auto-migrate SQLite database
+// Auto-migrate SQLite database and seed economic data
 using (var scope = host.Services.CreateScope())
 {
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
@@ -54,6 +59,9 @@ using (var scope = host.Services.CreateScope())
     await db.Database.MigrateAsync();
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
     await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
+
+    var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("EconomicDataSeeder");
+    await EconomicDataSeeder.SeedAsync(factory, seedLogger);
 }
 
 host.Run();

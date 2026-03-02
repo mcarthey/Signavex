@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Signavex.Domain.Configuration;
 using Signavex.Domain.Interfaces;
 using Signavex.Infrastructure.AlphaVantage;
+using Signavex.Infrastructure.Anthropic;
 using Signavex.Infrastructure.Caching;
 using Signavex.Infrastructure.Fred;
 using Signavex.Infrastructure.Persistence;
@@ -34,6 +35,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IScanStateStore, SqliteScanStateStore>();
         services.AddSingleton<IScanHistoryStore, SqliteScanHistoryStore>();
         services.AddSingleton<IScanCommandStore, SqliteScanCommandStore>();
+        services.AddSingleton<IEconomicDataStore, SqliteEconomicDataStore>();
+        services.AddSingleton<IDailyBriefStore, SqliteDailyBriefStore>();
 
         // Shared rate limiter for all Polygon/Massive API calls.
         // Free tier = 5 req/min. Paid tiers can override via config.
@@ -81,6 +84,17 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IEconomicDataProvider, FredEconomicDataProvider>(client =>
         {
             client.BaseAddress = new Uri(providerOptions.Fred.BaseUrl);
+        });
+
+        services.AddHttpClient<IFredApiClient, FredApiClient>(client =>
+        {
+            client.BaseAddress = new Uri(providerOptions.Fred.BaseUrl);
+        });
+
+        services.AddHttpClient<IAiBriefGenerator, AnthropicBriefGenerator>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.anthropic.com");
+            client.Timeout = TimeSpan.FromMinutes(3);
         });
 
         return services;

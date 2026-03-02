@@ -1,0 +1,289 @@
+@page "/economy"
+@using Signavex.Domain.Analysis
+@using Signavex.Domain.Interfaces
+@using Signavex.Web.Services
+@using Signavex.Web.Components.Shared
+@inject EconomicDashboardService EconService
+@inject IEconomicDataStore DataStore
+@implements IDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Economic Overview — Signavex</PageTitle>
+
+<div class="animate-fade-in">
+    @* Header *@
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-on-surface tracking-tight">Economic Overview</h1>
+            @if (_health is not null)
+            {
+                <p class="text-sm text-on-surface-variant mt-0.5">
+                    Last updated @_health.LastUpdated.ToString("MMM d, yyyy h:mm tt")
+                </p>
+            }
+        </div>
+        <button @onclick="RequestSync" disabled="@_syncing"
+                class="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-elevation-1 transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
+            @if (_syncing)
+            {
+                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Syncing @_syncedCount/@_totalEnabledSeries...</span>
+            }
+            else
+            {
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                </svg>
+                <span>Sync Data</span>
+            }
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="flex items-center justify-center py-16">
+            <div class="flex flex-col items-center gap-3">
+                <svg class="h-8 w-8 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-sm text-on-surface-variant">Loading economic data...</p>
+            </div>
+        </div>
+    }
+    else if (_health is null || _interpretations.Count == 0)
+    {
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-8 text-center">
+            <svg class="h-12 w-12 mx-auto text-on-surface-variant/40 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+            </svg>
+            <h3 class="text-lg font-semibold text-on-surface mb-2">No Economic Data Yet</h3>
+            <p class="text-sm text-on-surface-variant max-w-md mx-auto">
+                Click <strong>Sync Data</strong> above to fetch economic data now, or wait for the automatic sync at 4:30 PM ET.
+                The Worker service must be running to process sync requests.
+            </p>
+        </div>
+    }
+    else
+    {
+        @* Health Gauge + Categories *@
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+            @* Overall health *@
+            <div class="lg:col-span-3 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6 flex flex-col items-center justify-center">
+                <HealthGauge Score="@_health.OverallScore" Label="@_health.ScoreLabel" Size="160" />
+                <p class="text-xs text-on-surface-variant mt-2">Overall Economic Health</p>
+            </div>
+
+            @* Category cards *@
+            <div class="lg:col-span-9 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                @foreach (var cat in _health.CategoryScores)
+                {
+                    <CategoryHealthCard Category="cat" />
+                }
+            </div>
+        </div>
+
+        @* Key Insights *@
+        @if (_health.KeyInsights.Count > 0)
+        {
+            <div class="mb-6">
+                <h2 class="text-lg font-semibold text-on-surface mb-3">Key Insights</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    @foreach (var insight in _health.KeyInsights)
+                    {
+                        <div class="flex items-start gap-3 rounded-[var(--radius-md)] border @(insight.Type == "positive" ? "border-primary/30 bg-primary/5" : insight.Type == "negative" ? "border-error/30 bg-error/5" : "border-outline-variant bg-surface-container") p-4">
+                            <div class="shrink-0 mt-0.5">
+                                @if (insight.Type == "positive")
+                                {
+                                    <svg class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg class="h-5 w-5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                    </svg>
+                                }
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-on-surface">@insight.Title</p>
+                                <p class="text-xs text-on-surface-variant mt-0.5">@insight.Message</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* Indicator Grid *@
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold text-on-surface mb-3">Economic Indicators</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                @foreach (var ind in _interpretations)
+                {
+                    <a href="/economy/@ind.SeriesId" class="no-underline">
+                        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4 transition-colors hover:bg-surface-container-highest cursor-pointer">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-medium text-on-surface-variant">@ind.SeriesId</span>
+                                <span class="text-xs font-medium px-2 py-0.5 rounded-full @GetSentimentClass(ind.Sentiment)">
+                                    @GetTrendArrow(ind.TrendDirection) @ind.FormattedChange
+                                </span>
+                            </div>
+                            <p class="text-lg font-bold text-on-surface mb-1">@ind.FormattedValue</p>
+                            <p class="text-xs text-on-surface-variant line-clamp-1">@ind.Name</p>
+                            @if (_sparkData.TryGetValue(ind.SeriesId, out var sparkObs))
+                            {
+                                <div class="mt-2">
+                                    <SparkLine Observations="sparkObs" Width="120" Height="24"
+                                               Color="@(ind.Sentiment == "positive" ? "var(--color-primary)" : ind.Sentiment == "negative" ? "var(--color-error)" : "var(--color-on-surface-variant)")" />
+                                </div>
+                            }
+                        </div>
+                    </a>
+                }
+            </div>
+        </div>
+
+        @* Correlations *@
+        @if (_correlations?.Patterns.Count > 0)
+        {
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold text-on-surface">Correlation Patterns</h2>
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full @GetRiskClass(_correlations.OverallRisk)">
+                        Risk: @_correlations.OverallRisk
+                    </span>
+                </div>
+                <p class="text-sm text-on-surface-variant mb-3">@_correlations.Summary</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    @foreach (var pattern in _correlations.Patterns)
+                    {
+                        <CorrelationCard Pattern="pattern" />
+                    }
+                </div>
+            </div>
+        }
+
+        @* Recommendations *@
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold text-on-surface mb-3">Action Recommendations</h2>
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6">
+                <RecommendationPanel />
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private bool _syncing;
+    private int _syncedCount;
+    private int _totalEnabledSeries;
+    private Timer? _pollTimer;
+    private EconomicHealthSummary? _health;
+    private CorrelationAnalysis? _correlations;
+    private IReadOnlyList<IndicatorInterpretation> _interpretations = Array.Empty<IndicatorInterpretation>();
+    private Dictionary<string, IReadOnlyList<Domain.Models.Economic.EconomicObservation>> _sparkData = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+        _loading = false;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        EconService.InvalidateCache();
+        _interpretations = await EconService.GetIndicatorInterpretationsAsync();
+        _health = await EconService.GetHealthSummaryAsync();
+        _correlations = await EconService.GetCorrelationsAsync();
+
+        _sparkData.Clear();
+        foreach (var interp in _interpretations)
+        {
+            var obs = await DataStore.GetObservationsAsync(interp.SeriesId);
+            _sparkData[interp.SeriesId] = obs;
+        }
+    }
+
+    private async Task RequestSync()
+    {
+        _syncing = true;
+        _syncedCount = 0;
+        await EconService.RequestSyncAsync();
+
+        // Count enabled series for progress display
+        var allSeries = await DataStore.GetAllSeriesAsync(enabledOnly: true);
+        _totalEnabledSeries = allSeries.Count;
+
+        // Start polling for progress every 3 seconds
+        _pollTimer = new Timer(async _ => await PollSyncProgress(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+    }
+
+    private async Task PollSyncProgress()
+    {
+        try
+        {
+            // Count how many series have recent sync timestamps
+            var allSeries = await DataStore.GetAllSeriesAsync(enabledOnly: true);
+            var synced = 0;
+            foreach (var s in allSeries)
+            {
+                var sync = await DataStore.GetSyncStatusAsync(s.SeriesId);
+                if (sync is not null && (DateTime.UtcNow - sync.LastSyncUtc).TotalMinutes < 10)
+                    synced++;
+            }
+
+            var previousCount = _syncedCount;
+            _syncedCount = synced;
+
+            // Sync is complete when all series are synced
+            if (synced >= _totalEnabledSeries && _totalEnabledSeries > 0)
+            {
+                _pollTimer?.Dispose();
+                _pollTimer = null;
+                _syncing = false;
+
+                // Reload the dashboard data
+                await LoadDataAsync();
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Ignore polling errors — will retry on next tick
+        }
+    }
+
+    private static string GetTrendArrow(string trend) => trend switch
+    {
+        "up" => "\u2191",
+        "down" => "\u2193",
+        _ => "\u2192"
+    };
+
+    private static string GetSentimentClass(string sentiment) => sentiment switch
+    {
+        "positive" => "bg-primary/15 text-primary",
+        "negative" => "bg-error/15 text-error",
+        _ => "bg-outline-variant/30 text-on-surface-variant"
+    };
+
+    private static string GetRiskClass(string risk) => risk switch
+    {
+        "critical" => "bg-error/20 text-error",
+        "high" => "bg-warning/20 text-warning",
+        "medium" => "bg-outline-variant/30 text-on-surface-variant",
+        _ => "bg-primary/15 text-primary"
+    };
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+    }
+}

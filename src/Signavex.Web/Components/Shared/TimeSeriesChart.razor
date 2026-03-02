@@ -1,0 +1,133 @@
+@using Signavex.Domain.Models.Economic
+
+@* SVG time series chart with date range selector *@
+
+<div>
+    @* Date range buttons *@
+    <div class="flex items-center gap-1 mb-3">
+        @foreach (var range in _ranges)
+        {
+            <button class="px-3 py-1 text-xs font-medium rounded-[var(--radius-sm)] transition-colors @(_selectedRange == range.Key ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-highest")"
+                    @onclick="() => SelectRange(range.Key)">
+                @range.Key
+            </button>
+        }
+    </div>
+
+    @if (_filteredData.Count > 1)
+    {
+        <svg width="100%" height="@Height" viewBox="0 0 @ChartWidth @Height" preserveAspectRatio="none" class="rounded-[var(--radius-sm)] bg-surface-container">
+            @* Grid lines *@
+            @for (int i = 1; i < 4; i++)
+            {
+                var y = i * Height / 4;
+                <line x1="0" y1="@y" x2="@ChartWidth" y2="@y" stroke="var(--color-outline-variant)" stroke-width="0.5" opacity="0.3"/>
+            }
+
+            @* Area fill *@
+            <polygon points="@_areaPoints" fill="var(--color-primary)" opacity="0.1"/>
+
+            @* Line *@
+            <polyline points="@_linePoints" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+
+        @* Value axis labels *@
+        <div class="flex justify-between mt-1 text-xs text-on-surface-variant">
+            <span>@FormatDate(_filteredData[0].Date)</span>
+            <span>@FormatDate(_filteredData[^1].Date)</span>
+        </div>
+        <div class="flex justify-between mt-0.5 text-xs text-on-surface-variant">
+            <span>Low: @_minVal.ToString("N2")</span>
+            <span>High: @_maxVal.ToString("N2")</span>
+        </div>
+    }
+    else
+    {
+        <div class="flex items-center justify-center h-32 rounded-[var(--radius-sm)] bg-surface-container">
+            <p class="text-sm text-on-surface-variant">Not enough data to display chart</p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<EconomicObservation>? Observations { get; set; }
+    [Parameter] public int Height { get; set; } = 200;
+    [Parameter] public int ChartWidth { get; set; } = 800;
+
+    private string _selectedRange = "1Y";
+    private List<EconomicObservation> _filteredData = new();
+    private string _linePoints = "";
+    private string _areaPoints = "";
+    private double _minVal;
+    private double _maxVal;
+
+    private static readonly Dictionary<string, int> _ranges = new()
+    {
+        ["1M"] = 30, ["3M"] = 90, ["6M"] = 180,
+        ["1Y"] = 365, ["5Y"] = 1825, ["All"] = 0
+    };
+
+    protected override void OnParametersSet()
+    {
+        RenderChart();
+    }
+
+    private void SelectRange(string range)
+    {
+        _selectedRange = range;
+        RenderChart();
+    }
+
+    private void RenderChart()
+    {
+        if (Observations is null || Observations.Count < 2)
+        {
+            _filteredData = new();
+            return;
+        }
+
+        var days = _ranges[_selectedRange];
+        if (days > 0)
+        {
+            var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-days));
+            _filteredData = Observations.Where(o => o.Date >= cutoff).ToList();
+        }
+        else
+        {
+            _filteredData = Observations.ToList();
+        }
+
+        if (_filteredData.Count < 2)
+        {
+            _filteredData = Observations.ToList();
+        }
+
+        _minVal = _filteredData.Min(o => o.Value);
+        _maxVal = _filteredData.Max(o => o.Value);
+        var range = _maxVal - _minVal;
+        if (range == 0) range = 1;
+
+        var padding = 4;
+        var w = ChartWidth - padding * 2;
+        var h = Height - padding * 2;
+
+        var linePts = new List<string>();
+        var areaPts = new List<string>();
+        areaPts.Add($"{padding},{Height - padding}");
+
+        for (int i = 0; i < _filteredData.Count; i++)
+        {
+            var x = padding + (double)i / (_filteredData.Count - 1) * w;
+            var y = padding + (1 - (_filteredData[i].Value - _minVal) / range) * h;
+            var pt = $"{x:F1},{y:F1}";
+            linePts.Add(pt);
+            areaPts.Add(pt);
+        }
+
+        areaPts.Add($"{ChartWidth - padding},{Height - padding}");
+        _linePoints = string.Join(" ", linePts);
+        _areaPoints = string.Join(" ", areaPts);
+    }
+
+    private static string FormatDate(DateOnly date) => date.ToString("MMM yyyy");
+}

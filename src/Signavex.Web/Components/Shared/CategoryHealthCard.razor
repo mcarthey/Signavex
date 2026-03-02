@@ -1,0 +1,39 @@
+@using Signavex.Domain.Analysis
+
+<div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-4">
+    <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-on-surface">@Category.CategoryName</span>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full @GetTrendClass()">
+            @GetTrendIcon() @Category.Trend
+        </span>
+    </div>
+    <div class="w-full bg-outline-variant/30 rounded-full h-2 mb-2">
+        <div class="h-2 rounded-full transition-all duration-500" style="width: @Category.Score%; background: @GetBarColor();"></div>
+    </div>
+    <span class="text-xs text-on-surface-variant">@((int)Category.Score)/100</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CategoryHealth Category { get; set; } = default!;
+
+    private string GetTrendIcon() => Category.Trend switch
+    {
+        "up" => "\u2191",
+        "down" => "\u2193",
+        _ => "\u2192"
+    };
+
+    private string GetTrendClass() => Category.Trend switch
+    {
+        "up" => "bg-primary/15 text-primary",
+        "down" => "bg-error/15 text-error",
+        _ => "bg-outline-variant/30 text-on-surface-variant"
+    };
+
+    private string GetBarColor() => Category.Score switch
+    {
+        >= 70 => "var(--color-primary)",
+        >= 40 => "#f5c542",
+        _ => "var(--color-error)"
+    };
+}

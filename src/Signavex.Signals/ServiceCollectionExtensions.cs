@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IMarketSignal, InterestRateSignal>();
         services.AddTransient<IMarketSignal, VixLevelSignal>();
         services.AddTransient<IMarketSignal, SectorMomentumSignal>();
+        services.AddTransient<IMarketSignal, EconomicHealthSignal>();
 
         return services;
     }

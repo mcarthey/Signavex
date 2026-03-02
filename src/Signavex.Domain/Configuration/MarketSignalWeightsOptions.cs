@@ -10,4 +10,5 @@ public class MarketSignalWeightsOptions
     public double InterestRateEnvironment { get; set; } = 1.5;
     public double VixLevel { get; set; } = 1.5;
     public double SectorMomentum { get; set; } = 1.0;
+    public double EconomicHealth { get; set; } = 0.8;
 }

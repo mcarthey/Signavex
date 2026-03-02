@@ -1,9 +1,11 @@
 @page "/settings"
 @using Signavex.Domain.Configuration
+@using Signavex.Domain.Interfaces
 @using Signavex.Web.Services
 @using Microsoft.Extensions.Options
 @inject IOptionsMonitor<SignavexOptions> OptionsMonitor
 @inject ApiKeyValidationService ApiKeyService
+@inject IEconomicDataStore EconomicDataStore
 @rendermode InteractiveServer
 
 <PageTitle>Settings — Signavex</PageTitle>
@@ -35,6 +37,31 @@
                     }
                 </div>
             }
+        </div>
+    </div>
+
+    @* Economic Data *@
+    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
+        <h3 class="text-base font-semibold text-on-surface mb-3">Economic Data (FRED)</h3>
+        <div class="space-y-2">
+            <div class="flex items-center justify-between py-1">
+                <span class="text-sm text-on-surface">Tracked Series</span>
+                <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                    @_totalSeries total (@_enabledSeries enabled)
+                </span>
+            </div>
+            <div class="flex items-center justify-between py-1">
+                <span class="text-sm text-on-surface">Sync Schedule</span>
+                <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                    Weekdays 4:30 PM ET (Worker)
+                </span>
+            </div>
+            <div class="flex items-center justify-between py-1">
+                <span class="text-sm text-on-surface">Last Synced Series</span>
+                <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                    @(_lastSyncLabel ?? "Never")
+                </span>
+            </div>
         </div>
     </div>
 
@@ -104,12 +131,29 @@
     private SignavexOptions _options = new();
     private SignalWeightsOptions _weights = new();
     private MarketSignalWeightsOptions _marketWeights = new();
+    private int _totalSeries;
+    private int _enabledSeries;
+    private string? _lastSyncLabel;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _options = OptionsMonitor.CurrentValue;
         _weights = _options.SignalWeights;
         _marketWeights = _options.MarketSignalWeights;
+
+        var allSeries = await EconomicDataStore.GetAllSeriesAsync();
+        _totalSeries = allSeries.Count;
+        _enabledSeries = allSeries.Count(s => s.IsEnabled);
+
+        // Find most recent sync
+        DateTime? latestSync = null;
+        foreach (var s in allSeries)
+        {
+            var sync = await EconomicDataStore.GetSyncStatusAsync(s.SeriesId);
+            if (sync is not null && (latestSync is null || sync.LastSyncUtc > latestSync))
+                latestSync = sync.LastSyncUtc;
+        }
+        _lastSyncLabel = latestSync?.ToString("MMM d, yyyy h:mm tt") + " UTC";
     }
 
     private IEnumerable<(string Name, double Weight)> GetStockSignals() => new[]
@@ -131,7 +175,8 @@
         ("Market Trend", _marketWeights.MarketTrend),
         ("Interest Rate Environment", _marketWeights.InterestRateEnvironment),
         ("VIX Level", _marketWeights.VixLevel),
-        ("Sector Momentum", _marketWeights.SectorMomentum)
+        ("Sector Momentum", _marketWeights.SectorMomentum),
+        ("Economic Health", _marketWeights.EconomicHealth)
     };
 
     private IEnumerable<(string Name, bool Configured)> GetKeyStatus()

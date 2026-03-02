@@ -1,0 +1,35 @@
+@using Signavex.Domain.Analysis
+
+<div class="rounded-[var(--radius-md)] border @GetBorderClass() p-4">
+    <div class="flex items-start justify-between mb-2">
+        <h4 class="text-sm font-semibold text-on-surface">@Pattern.Title</h4>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ml-2 @GetSeverityClass()">
+            @Pattern.Severity
+        </span>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-3">@Pattern.Description</p>
+    <div class="flex items-center gap-4 text-xs text-on-surface-variant">
+        <span>Confidence: @Pattern.Confidence%</span>
+        <span>Indicators: @string.Join(", ", Pattern.Indicators)</span>
+    </div>
+    <p class="text-xs text-on-surface-variant mt-2 italic">@Pattern.EconomicSignal</p>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CorrelationPattern Pattern { get; set; } = default!;
+
+    private string GetBorderClass() => Pattern.Type switch
+    {
+        "positive" => "border-primary/30 bg-primary/5",
+        "negative" => "border-error/30 bg-error/5",
+        _ => "border-outline-variant bg-surface-container"
+    };
+
+    private string GetSeverityClass() => Pattern.Severity switch
+    {
+        "critical" => "bg-error/20 text-error",
+        "high" => "bg-warning/20 text-warning",
+        "medium" => "bg-outline-variant/30 text-on-surface-variant",
+        _ => "bg-primary/15 text-primary"
+    };
+}

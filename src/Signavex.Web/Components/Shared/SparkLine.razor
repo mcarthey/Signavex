@@ -1,0 +1,51 @@
+@using Signavex.Domain.Models.Economic
+
+@* Inline SVG sparkline *@
+<svg width="@Width" height="@Height" viewBox="0 0 @Width @Height" class="inline-block">
+    @if (_points.Length > 1)
+    {
+        <polyline points="@_points" fill="none" stroke="@Color" stroke-width="1.5" stroke-linejoin="round"/>
+    }
+</svg>
+
+@code {
+    [Parameter] public IReadOnlyList<EconomicObservation>? Observations { get; set; }
+    [Parameter] public int Width { get; set; } = 80;
+    [Parameter] public int Height { get; set; } = 24;
+    [Parameter] public string Color { get; set; } = "var(--color-primary)";
+
+    private string _points = "";
+
+    protected override void OnParametersSet()
+    {
+        if (Observations is null || Observations.Count < 2)
+        {
+            _points = "";
+            return;
+        }
+
+        // Take last 30 points max
+        var data = Observations.Count > 30
+            ? Observations.Skip(Observations.Count - 30).ToList()
+            : Observations.ToList();
+
+        var minVal = data.Min(o => o.Value);
+        var maxVal = data.Max(o => o.Value);
+        var range = maxVal - minVal;
+        if (range == 0) range = 1;
+
+        var padding = 2;
+        var w = Width - padding * 2;
+        var h = Height - padding * 2;
+
+        var pts = new List<string>();
+        for (int i = 0; i < data.Count; i++)
+        {
+            var x = padding + (double)i / (data.Count - 1) * w;
+            var y = padding + (1 - (data[i].Value - minVal) / range) * h;
+            pts.Add($"{x:F1},{y:F1}");
+        }
+
+        _points = string.Join(" ", pts);
+    }
+}
