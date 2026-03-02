@@ -29,11 +29,15 @@ public class SqliteScanStateStore : IScanStateStore
         _logger = logger;
     }
 
-    public async Task SaveCheckpointAsync(ScanCheckpoint checkpoint, CancellationToken ct = default)
+    public Task SaveCheckpointAsync(ScanCheckpoint checkpoint, CancellationToken ct = default)
+        => SaveCheckpointAsync(checkpoint, checkpoint.UniverseTickers.Count, ct);
+
+    public async Task SaveCheckpointAsync(ScanCheckpoint checkpoint, int totalOverride, CancellationToken ct = default)
     {
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
 
         var payload = JsonSerializer.Serialize(checkpoint, JsonOptions);
+        var total = totalOverride > 0 ? totalOverride : checkpoint.UniverseTickers.Count;
         var existing = await db.ScanCheckpoints.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
 
         if (existing is not null)
@@ -42,6 +46,13 @@ public class SqliteScanStateStore : IScanStateStore
             existing.StartedAtUtc = checkpoint.StartedAtUtc;
             existing.PayloadJson = payload;
             existing.UpdatedAtUtc = DateTime.UtcNow;
+            existing.Evaluated = checkpoint.EvaluatedTickers.Count;
+            existing.Total = total;
+            existing.CurrentTicker = checkpoint.EvaluatedTickers.Count > 0
+                ? checkpoint.EvaluatedTickers[^1] : string.Empty;
+            existing.CandidatesFound = checkpoint.CandidatesSoFar.Count;
+            existing.ErrorCount = checkpoint.ErrorCount;
+            existing.IsActive = true;
         }
         else
         {
@@ -50,13 +61,20 @@ public class SqliteScanStateStore : IScanStateStore
                 ScanId = checkpoint.ScanId,
                 StartedAtUtc = checkpoint.StartedAtUtc,
                 PayloadJson = payload,
-                UpdatedAtUtc = DateTime.UtcNow
+                UpdatedAtUtc = DateTime.UtcNow,
+                Evaluated = checkpoint.EvaluatedTickers.Count,
+                Total = total,
+                CurrentTicker = checkpoint.EvaluatedTickers.Count > 0
+                    ? checkpoint.EvaluatedTickers[^1] : string.Empty,
+                CandidatesFound = checkpoint.CandidatesSoFar.Count,
+                ErrorCount = checkpoint.ErrorCount,
+                IsActive = true
             });
         }
 
         await db.SaveChangesAsync(ct);
         _logger.LogDebug("Saved checkpoint: {Evaluated}/{Total} evaluated",
-            checkpoint.EvaluatedTickers.Count, checkpoint.UniverseTickers.Count);
+            checkpoint.EvaluatedTickers.Count, total);
     }
 
     public async Task<ScanCheckpoint?> LoadCheckpointAsync(CancellationToken ct = default)
@@ -155,6 +173,49 @@ public class SqliteScanStateStore : IScanStateStore
         return new CompletedScanResult(
             run.ScanId, run.CompletedAtUtc, marketContext,
             candidates, run.TotalEvaluated, run.ErrorCount);
+    }
+
+    public async Task<ScanStatus> GetScanStatusAsync(CancellationToken ct = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var entity = await db.ScanCheckpoints
+            .AsNoTracking()
+            .OrderByDescending(x => x.UpdatedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
+        if (entity is null || !entity.IsActive)
+        {
+            return new ScanStatus(
+                IsScanning: false,
+                Evaluated: 0,
+                Total: 0,
+                CurrentTicker: string.Empty,
+                CandidatesFound: 0,
+                ErrorCount: 0,
+                StartedAtUtc: null,
+                LastUpdatedAtUtc: null);
+        }
+
+        return new ScanStatus(
+            IsScanning: true,
+            Evaluated: entity.Evaluated,
+            Total: entity.Total,
+            CurrentTicker: entity.CurrentTicker,
+            CandidatesFound: entity.CandidatesFound,
+            ErrorCount: entity.ErrorCount,
+            StartedAtUtc: entity.StartedAtUtc,
+            LastUpdatedAtUtc: entity.UpdatedAtUtc);
+    }
+
+    public async Task SetCheckpointInactiveAsync(CancellationToken ct = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var entity = await db.ScanCheckpoints.OrderByDescending(x => x.UpdatedAtUtc).FirstOrDefaultAsync(ct);
+        if (entity is not null)
+        {
+            entity.IsActive = false;
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     internal static IReadOnlyList<SignalResult> DeserializeSignals(string json)

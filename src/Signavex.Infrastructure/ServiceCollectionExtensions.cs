@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IScanStateStore, SqliteScanStateStore>();
         services.AddSingleton<IScanHistoryStore, SqliteScanHistoryStore>();
+        services.AddSingleton<IScanCommandStore, SqliteScanCommandStore>();
 
         // Shared rate limiter for all Polygon/Massive API calls.
         // Free tier = 5 req/min. Paid tiers can override via config.

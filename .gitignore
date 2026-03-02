@@ -423,6 +423,10 @@ src/Signavex.Web/wwwroot/css/app.built.css
 
 # Scan data files (checkpoints and results)
 src/Signavex.Web/data/
+data/
+
+# Coverage reports
+coverage-report/
 
 # Environment-specific settings (contain API keys)
 **/appsettings.Development.json

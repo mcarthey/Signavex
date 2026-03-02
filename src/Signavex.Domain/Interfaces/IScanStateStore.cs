@@ -8,9 +8,12 @@ namespace Signavex.Domain.Interfaces;
 public interface IScanStateStore
 {
     Task SaveCheckpointAsync(ScanCheckpoint checkpoint, CancellationToken ct = default);
+    Task SaveCheckpointAsync(ScanCheckpoint checkpoint, int totalOverride, CancellationToken ct = default);
     Task<ScanCheckpoint?> LoadCheckpointAsync(CancellationToken ct = default);
     Task DeleteCheckpointAsync(CancellationToken ct = default);
 
     Task SaveCompletedResultAsync(CompletedScanResult result, CancellationToken ct = default);
     Task<CompletedScanResult?> LoadLatestResultAsync(CancellationToken ct = default);
+
+    Task<ScanStatus> GetScanStatusAsync(CancellationToken ct = default);
 }

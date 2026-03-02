@@ -19,6 +19,12 @@ public class SignavexOptions
     /// </summary>
     public List<string> Universe { get; set; } = ["SP500", "SP400"];
 
+    /// <summary>
+    /// Absolute path to the shared data directory containing signavex.db.
+    /// Both Worker and Web must point to the same directory.
+    /// </summary>
+    public string DataDirectory { get; set; } = "";
+
     public SignalWeightsOptions SignalWeights { get; set; } = new();
 
     public MarketSignalWeightsOptions MarketSignalWeights { get; set; } = new();

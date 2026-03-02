@@ -10,6 +10,7 @@ public class SignavexDbContext : DbContext
     public DbSet<ScanRunEntity> ScanRuns => Set<ScanRunEntity>();
     public DbSet<ScanCandidateEntity> ScanCandidates => Set<ScanCandidateEntity>();
     public DbSet<ScanCheckpointEntity> ScanCheckpoints => Set<ScanCheckpointEntity>();
+    public DbSet<ScanCommandEntity> ScanCommands => Set<ScanCommandEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +39,13 @@ public class SignavexDbContext : DbContext
         {
             e.ToTable("ScanCheckpoints");
             e.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<ScanCommandEntity>(e =>
+        {
+            e.ToTable("ScanCommands");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.RequestedAtUtc);
         });
     }
 }
