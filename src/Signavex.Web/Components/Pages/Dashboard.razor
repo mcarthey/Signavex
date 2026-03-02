@@ -1,10 +1,14 @@
+@page "/"
 @page "/dashboard"
+@using Signavex.Domain.Configuration
 @using Signavex.Domain.Enums
 @using Signavex.Domain.Helpers
 @using Signavex.Domain.Models
 @using Signavex.Web.Services
+@using Microsoft.Extensions.Options
 @inject ScanDashboardService DashboardService
 @inject ApiKeyValidationService ApiKeyService
+@inject IOptions<SignavexOptions> Options
 @inject IJSRuntime JS
 @rendermode InteractiveServer
 @implements IDisposable
@@ -90,6 +94,10 @@
                 </span>
                 <span class="text-on-surface-variant">
                     @s.Evaluated / @s.Total
+                    @if (EstimatedTimeRemaining(s) is { } eta)
+                    {
+                        <span> · ~@FormatEta(eta) remaining</span>
+                    }
                 </span>
             </div>
             <div class="h-2 w-full rounded-[var(--radius-full)] bg-surface-container-high overflow-hidden">
@@ -119,17 +127,77 @@
     @* Results *@
     @if (!DisplayResults.Any() && _scanStatus?.IsScanning != true)
     {
-        <div class="flex flex-col items-center justify-center py-16 text-center">
-            <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
-                <svg class="h-8 w-8 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                </svg>
+        @if (_lastScanTime.HasValue && _marketContext is not null)
+        {
+            @* Scan completed with 0 candidates — show rich summary *@
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5">
+                <h3 class="text-base font-semibold text-on-surface mb-4">Last Scan Summary</h3>
+
+                @* Stats row *@
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div class="rounded-[var(--radius-sm)] bg-surface-container p-3 text-center">
+                        <p class="text-2xl font-bold text-on-surface">@_totalEvaluated.ToString("N0")</p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Stocks Evaluated</p>
+                    </div>
+                    <div class="rounded-[var(--radius-sm)] bg-surface-container p-3 text-center">
+                        <p class="text-2xl font-bold text-on-surface">0</p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Candidates Found</p>
+                    </div>
+                    <div class="rounded-[var(--radius-sm)] bg-surface-container p-3 text-center">
+                        <p class="text-2xl font-bold @(_marketContext.Multiplier >= 1.0 ? "text-success" : "text-warning")">
+                            @_marketContext.Multiplier.ToString("F2")x
+                        </p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Market Multiplier</p>
+                    </div>
+                </div>
+
+                @* Market signals breakdown *@
+                @if (_marketContext.MarketSignals.Any())
+                {
+                    <h4 class="text-sm font-medium text-on-surface mb-2">Market Signals</h4>
+                    <div class="grid gap-2 sm:grid-cols-2 mb-4">
+                        @foreach (var signal in _marketContext.MarketSignals.OrderByDescending(s => Math.Abs(s.Score * s.Weight)))
+                        {
+                            <div class="rounded-[var(--radius-sm)] bg-surface-container px-3 py-2">
+                                <div class="flex items-center justify-between mb-0.5">
+                                    <span class="text-sm font-medium text-on-surface">@FormatSignalName(signal.SignalName)</span>
+                                    <span class="text-sm font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
+                                        @signal.Score.ToString("+0.00;-0.00")
+                                    </span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(signal.Reason))
+                                {
+                                    <p class="text-xs text-on-surface-variant">@signal.Reason</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* Educational explanation *@
+                <div class="rounded-[var(--radius-sm)] border border-outline-variant/50 bg-surface-container/50 p-3">
+                    <p class="text-sm font-medium text-on-surface mb-1">Why no candidates?</p>
+                    <p class="text-sm text-on-surface-variant leading-relaxed">
+                        @MarketExplanation()
+                    </p>
+                </div>
             </div>
-            <h3 class="text-base font-semibold text-on-surface">No candidates yet</h3>
-            <p class="mt-1 text-sm text-on-surface-variant max-w-sm">
-                Click <strong>Run Scan</strong> to evaluate the stock universe and discover candidates.
-            </p>
-        </div>
+        }
+        else
+        {
+            @* No scan has ever run — generic empty state *@
+            <div class="flex flex-col items-center justify-center py-16 text-center">
+                <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
+                    <svg class="h-8 w-8 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-on-surface">No candidates yet</h3>
+                <p class="mt-1 text-sm text-on-surface-variant max-w-sm">
+                    Click <strong>Run Scan</strong> to evaluate the stock universe and discover candidates.
+                </p>
+            </div>
+        }
     }
     else if (DisplayResults.Any())
     {
@@ -193,6 +261,7 @@
     private IReadOnlyList<StockCandidate> _liveCandidates = Array.Empty<StockCandidate>();
     private DateTime? _lastScanTime;
     private int _lastScanErrors;
+    private int _totalEvaluated;
     private bool _scanRequested;
 
     private Timer? _pollTimer;
@@ -227,6 +296,7 @@
                 _marketContext = result.MarketContext;
                 _lastScanTime = result.CompletedAtUtc;
                 _lastScanErrors = result.ErrorCount;
+                _totalEvaluated = result.TotalEvaluated;
             }
         }
         catch
@@ -319,9 +389,68 @@
         return $"{(int)elapsed.TotalDays}d ago";
     }
 
+    private static TimeSpan? EstimatedTimeRemaining(ScanStatus s)
+    {
+        if (s.StartedAtUtc is null || s.Evaluated <= 0 || s.Total <= 0)
+            return null;
+
+        var elapsed = DateTime.UtcNow - s.StartedAtUtc.Value;
+        var avgPerStock = elapsed / s.Evaluated;
+        var remaining = s.Total - s.Evaluated;
+        return avgPerStock * remaining;
+    }
+
+    private static string FormatEta(TimeSpan eta)
+    {
+        if (eta.TotalMinutes < 1) return "<1m";
+        if (eta.TotalHours < 1) return $"{(int)eta.TotalMinutes}m";
+        return $"{(int)eta.TotalHours}h {eta.Minutes}m";
+    }
+
     private static string ChipCss(bool active) => active
         ? "rounded-[var(--radius-sm)] bg-primary text-on-primary px-3 py-1.5 text-xs font-medium transition-colors"
         : "rounded-[var(--radius-sm)] bg-surface-container text-on-surface-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container-high";
+
+    private string MarketExplanation()
+    {
+        var threshold = Options.Value.SurfacingThreshold;
+        var mult = _marketContext!.Multiplier;
+
+        if (mult < 0.7)
+            return $"Market conditions are very bearish (multiplier {mult:F2}x). " +
+                   $"Every stock's raw score is multiplied by {mult:F2}, meaning a stock would need a raw score above " +
+                   $"{threshold / mult:F2} to clear the {threshold:F2} surfacing threshold. " +
+                   "In conditions like these, even strong individual stocks struggle to surface.";
+
+        if (mult < 0.9)
+            return $"Market conditions are challenging (multiplier {mult:F2}x). " +
+                   $"The market multiplier reduces all final scores, so stocks need a raw score above " +
+                   $"{threshold / mult:F2} to clear the {threshold:F2} surfacing threshold. " +
+                   "Fewer stocks meet this bar when the broader market is under pressure.";
+
+        if (mult < 1.0)
+            return $"Market conditions are slightly unfavorable (multiplier {mult:F2}x). " +
+                   $"Stocks need a raw score above {threshold / mult:F2} to reach the " +
+                   $"{threshold:F2} surfacing threshold. " +
+                   "Even a small headwind from market conditions can push borderline candidates below the cutoff.";
+
+        return $"Market conditions are neutral to favorable (multiplier {mult:F2}x), " +
+               $"yet no stocks reached the {threshold:F2} surfacing threshold. " +
+               "This can happen when individual stock signals (volume, trend, analyst ratings) are mixed or weak across the board.";
+    }
+
+    private static string FormatSignalName(string name)
+    {
+        // "MarketTrend" → "Market Trend", "VixLevel" → "Vix Level"
+        var sb = new System.Text.StringBuilder(name.Length + 4);
+        for (int i = 0; i < name.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(name[i]) && !char.IsUpper(name[i - 1]))
+                sb.Append(' ');
+            sb.Append(name[i]);
+        }
+        return sb.ToString();
+    }
 
     public void Dispose()
     {

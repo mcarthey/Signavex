@@ -172,10 +172,45 @@
                                     <td colspan="5" class="px-4 py-3 bg-surface-container/30">
                                         @if (_expandedResult.Candidates.Count == 0)
                                         {
-                                            <p class="text-sm text-on-surface-variant">No candidates in this scan.</p>
+                                            <p class="text-sm text-on-surface-variant mb-3">No candidates surfaced in this scan.</p>
+
+                                            @if (_expandedResult.MarketContext.MarketSignals.Any())
+                                            {
+                                                <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wide mb-2">Market Conditions</p>
+                                                <div class="flex flex-wrap gap-2 mb-2">
+                                                    @foreach (var signal in _expandedResult.MarketContext.MarketSignals)
+                                                    {
+                                                        <div class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-surface-container px-3 py-1.5 text-xs">
+                                                            <span class="font-medium text-on-surface-variant">@FormatSignalName(signal.SignalName)</span>
+                                                            <span class="font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
+                                                                @signal.Score.ToString("+0.00;-0.00")
+                                                            </span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+
+                                            @if (!string.IsNullOrEmpty(_expandedResult.MarketContext.Summary))
+                                            {
+                                                <p class="text-xs text-on-surface-variant italic">@_expandedResult.MarketContext.Summary</p>
+                                            }
                                         }
                                         else
                                         {
+                                            @if (_expandedResult.MarketContext.MarketSignals.Any())
+                                            {
+                                                <div class="flex flex-wrap gap-2 mb-3">
+                                                    @foreach (var signal in _expandedResult.MarketContext.MarketSignals)
+                                                    {
+                                                        <div class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-surface-container px-3 py-1.5 text-xs">
+                                                            <span class="font-medium text-on-surface-variant">@FormatSignalName(signal.SignalName)</span>
+                                                            <span class="font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
+                                                                @signal.Score.ToString("+0.00;-0.00")
+                                                            </span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
                                             <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                                 @foreach (var c in _expandedResult.Candidates)
                                                 {
@@ -250,4 +285,16 @@
         >= 0.8 => "bg-warning/20 text-warning",
         _ => "bg-error/20 text-error"
     };
+
+    private static string FormatSignalName(string name)
+    {
+        var sb = new System.Text.StringBuilder(name.Length + 4);
+        for (int i = 0; i < name.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(name[i]) && !char.IsUpper(name[i - 1]))
+                sb.Append(' ');
+            sb.Append(name[i]);
+        }
+        return sb.ToString();
+    }
 }
