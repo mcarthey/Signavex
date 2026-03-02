@@ -53,10 +53,18 @@ public class ScanEngine
         CancellationToken cancellationToken = default)
         => RunScanAsync(progress, null, null, cancellationToken);
 
+    public Task<ScanRunResult> RunScanAsync(
+        IProgress<ScanProgress>? progress,
+        ScanResumeState? resumeState,
+        Func<string, StockCandidate?, Task>? onStockEvaluated,
+        CancellationToken cancellationToken = default)
+        => RunScanAsync(progress, resumeState, onStockEvaluated, null, cancellationToken);
+
     public async Task<ScanRunResult> RunScanAsync(
         IProgress<ScanProgress>? progress,
         ScanResumeState? resumeState,
         Func<string, StockCandidate?, Task>? onStockEvaluated,
+        Action<MarketContext>? onMarketContextReady,
         CancellationToken cancellationToken = default)
     {
         // Step 1: Evaluate market context (Tier 1) — or reuse from resume state
@@ -74,6 +82,8 @@ public class ScanEngine
             var spOhlcv = (await _marketDataProvider.GetDailyOhlcvAsync("SPY", OhlcvDays)).ToList().AsReadOnly();
             marketContext = await _marketEvaluator.EvaluateAsync(macroIndicators, spOhlcv);
         }
+
+        onMarketContextReady?.Invoke(marketContext);
 
         _logger.LogInformation("Market context: {Summary} (multiplier: {Multiplier:F2})",
             marketContext.Summary, marketContext.Multiplier);

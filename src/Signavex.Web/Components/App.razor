@@ -15,8 +15,27 @@
 
 <body class="bg-surface text-on-surface font-sans antialiased">
     <Routes />
-    <script src="_framework/blazor.web.js"></script>
+    <script src="_framework/blazor.web.js" autostart="false"></script>
     <script src="js/download.js"></script>
+    <script>
+        Blazor.start({
+            circuit: {
+                reconnectionOptions: {
+                    maxRetries: 5,
+                    retryIntervalMilliseconds: 2000
+                }
+            }
+        }).then(() => {
+            // When all reconnect attempts fail, reload the page to get a fresh circuit
+            const observer = new MutationObserver(() => {
+                const modal = document.getElementById('components-reconnect-modal');
+                if (modal && modal.classList.contains('components-reconnect-failed')) {
+                    location.reload();
+                }
+            });
+            observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+        });
+    </script>
 </body>
 
 </html>

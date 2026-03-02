@@ -210,6 +210,7 @@ public class ScanResultsService
         var evaluatedTickers = new List<string>(resumeState?.AlreadyEvaluatedTickers ?? new HashSet<string>());
         var allCandidates = new List<StockCandidate>(resumeState?.CandidatesSoFar ?? new List<StockCandidate>());
         MarketContext? marketContext = resumeState?.MarketContext;
+        var lastKnownErrorCount = resumeState?.PriorErrorCount ?? 0;
 
         // Progress callback with ETA calculation
         var progress = new Progress<ScanProgress>(p =>
@@ -224,6 +225,8 @@ public class ScanResultsService
                 var remaining = p.Total - p.Evaluated;
                 eta = avgPerStock * remaining;
             }
+
+            lastKnownErrorCount = p.ErrorCount;
 
             var enhanced = new EnhancedScanProgress(
                 p.Evaluated, p.Total, p.CurrentTicker, p.ErrorCount,
@@ -259,7 +262,7 @@ public class ScanResultsService
                         universeTickers.AsReadOnly(),
                         evaluatedTickers.AsReadOnly(),
                         allCandidates.AsReadOnly(),
-                        allCandidates.Count);
+                        lastKnownErrorCount);
 
                     await _stateStore.SaveCheckpointAsync(checkpoint, CancellationToken.None);
                 }
@@ -275,9 +278,11 @@ public class ScanResultsService
             using var scope = _scopeFactory.CreateScope();
             var engine = scope.ServiceProvider.GetRequiredService<ScanEngine>();
 
-            // Capture universe tickers for checkpoint (engine fetches this internally,
-            // but we need it for the checkpoint). We'll get it from the first progress report.
-            var result = await engine.RunScanAsync(progress, resumeState, onStockEvaluated, cancellationToken);
+            var result = await engine.RunScanAsync(progress, resumeState, onStockEvaluated, ctx =>
+            {
+                marketContext = ctx;
+                lock (_lock) _latestMarketContext = ctx;
+            }, cancellationToken);
 
             marketContext = result.MarketContext;
 
