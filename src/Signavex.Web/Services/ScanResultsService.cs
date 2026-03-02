@@ -74,7 +74,8 @@ public class ScanResultsService
     public event Action? OnCandidateFound;
 
     /// <summary>
-    /// Loads the last completed scan result from disk. Called once on first access.
+    /// Loads the last completed scan result from disk. Falls back to checkpoint
+    /// candidates if no completed scan exists. Called once on first access.
     /// </summary>
     public async Task EnsureInitializedAsync()
     {
@@ -95,6 +96,23 @@ public class ScanResultsService
                 _logger.LogInformation("Loaded persisted scan results: {Count} candidates from {Time}",
                     completed.Candidates.Count, completed.CompletedAtUtc);
             }
+            else
+            {
+                // No completed scan — check for checkpoint candidates so the dashboard isn't empty
+                var checkpoint = await _stateStore.LoadCheckpointAsync();
+                if (checkpoint is not null && checkpoint.CandidatesSoFar.Count > 0)
+                {
+                    lock (_lock)
+                    {
+                        _latestResults = checkpoint.CandidatesSoFar;
+                        _latestMarketContext = checkpoint.MarketContext;
+                        _lastScanTime = checkpoint.StartedAtUtc;
+                    }
+                    _logger.LogInformation(
+                        "No completed scan — loaded {Count} candidates from checkpoint {ScanId}",
+                        checkpoint.CandidatesSoFar.Count, checkpoint.ScanId);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -105,20 +123,23 @@ public class ScanResultsService
     }
 
     /// <summary>
-    /// Returns true if a same-day checkpoint exists for resume.
+    /// Returns true if a recent checkpoint exists for resume (within 48 hours).
     /// </summary>
     public async Task<bool> HasResumableCheckpointAsync()
     {
         try
         {
             var checkpoint = await _stateStore.LoadCheckpointAsync();
-            return checkpoint is not null && checkpoint.StartedAtUtc.Date == DateTime.UtcNow.Date;
+            return checkpoint is not null && IsCheckpointRecent(checkpoint);
         }
         catch
         {
             return false;
         }
     }
+
+    private static bool IsCheckpointRecent(ScanCheckpoint checkpoint)
+        => (DateTime.UtcNow - checkpoint.StartedAtUtc).TotalHours < 48;
 
     public async Task RunScanAsync(CancellationToken cancellationToken = default)
     {
@@ -138,13 +159,13 @@ public class ScanResultsService
         var initialEvaluated = 0;
         string scanId;
 
-        // Check for existing same-day checkpoint
+        // Check for existing checkpoint (within 48-hour window)
         try
         {
             var checkpoint = await _stateStore.LoadCheckpointAsync(cancellationToken);
             if (checkpoint is not null)
             {
-                if (checkpoint.StartedAtUtc.Date == DateTime.UtcNow.Date)
+                if (IsCheckpointRecent(checkpoint))
                 {
                     resumeState = new ScanResumeState(
                         checkpoint.MarketContext,

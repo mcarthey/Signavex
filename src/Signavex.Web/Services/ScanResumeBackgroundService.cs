@@ -20,7 +20,7 @@ public class ScanResumeBackgroundService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Let the app fully start before checking
-        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+        await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
 
         await _scanService.EnsureInitializedAsync();
 
