@@ -1,7 +1,10 @@
 @page "/candidate/{Ticker}"
+@using Signavex.Domain.Interfaces
 @using Signavex.Domain.Models
 @using Signavex.Web.Services
 @inject ScanResultsService ScanService
+@inject IScanHistoryStore HistoryStore
+@inject IScanStateStore StateStore
 @inject NavigationManager Nav
 
 <PageTitle>@Ticker — Signavex</PageTitle>
@@ -16,7 +19,13 @@
         <span class="font-medium text-on-surface">@Ticker</span>
     </nav>
 
-    @if (_candidate is null)
+    @if (_loading)
+    {
+        <div class="flex items-center justify-center py-16">
+            <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+        </div>
+    }
+    else if (_candidate is null)
     {
         <div class="flex flex-col items-center justify-center py-16 text-center">
             <div class="flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-warning-container mb-3">
@@ -59,14 +68,89 @@
                     </div>
                 </div>
             </div>
+
+            @* Score formula *@
+            <div class="mt-4 pt-3 border-t border-outline-variant">
+                <p class="text-xs text-on-surface-variant">
+                    Score:
+                    <span class="font-semibold text-on-surface">@_candidate.RawScore.ToString("F3")</span>
+                    <span class="mx-1">raw</span>
+                    <span class="mx-1">&times;</span>
+                    <span class="font-semibold text-on-surface">@_candidate.MarketContext.Multiplier.ToString("F2")</span>
+                    <span class="mx-1">market</span>
+                    <span class="mx-1">=</span>
+                    <span class="font-semibold text-on-surface">@_candidate.FinalScore.ToString("F3")</span>
+                    <span class="mx-1">final</span>
+                </p>
+            </div>
         </div>
 
-        @* Market context *@
-        <MarketContextBar Context="_candidate.MarketContext" ShowDetails="false" />
+        @* Market context (expanded) *@
+        <MarketContextBar Context="_candidate.MarketContext" ShowDetails="true" />
 
-        @* Signal Breakdown *@
-        <h3 class="text-base font-semibold text-on-surface mb-3">Signal Breakdown</h3>
-        <SignalBreakdown Signals="_candidate.SignalResults" />
+        @* Score History *@
+        @if (_tickerHistory is not null && _tickerHistory.Appearances.Count > 1)
+        {
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1 mb-4">
+                <h3 class="text-sm font-semibold text-on-surface mb-3">Score History</h3>
+                <div class="flex items-end gap-1 h-24">
+                    @foreach (var appearance in _tickerHistory.Appearances)
+                    {
+                        var barHeight = Math.Max(4, (int)(appearance.FinalScore / _maxHistoryScore * 100));
+                        <div class="flex-1 flex flex-col items-center gap-1 min-w-0 group relative">
+                            <div class="w-full max-w-[2rem] rounded-t-[var(--radius-xs)] transition-colors @BarCss(appearance.FinalScore)"
+                                 style="height: @(barHeight)%"
+                                 title="@appearance.ScanDate.ToString("MMM d") — @appearance.FinalScore.ToString("F2")">
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="flex items-end gap-1 mt-1">
+                    @foreach (var appearance in _tickerHistory.Appearances)
+                    {
+                        <div class="flex-1 text-center min-w-0">
+                            <span class="text-[9px] text-on-surface-variant truncate block">@appearance.ScanDate.ToString("M/d")</span>
+                        </div>
+                    }
+                </div>
+                <p class="text-xs text-on-surface-variant mt-2">
+                    Appeared in @_tickerHistory.Appearances.Count scan@(_tickerHistory.Appearances.Count == 1 ? "" : "s")
+                </p>
+            </div>
+        }
+
+        @* Signal Breakdown — grouped *@
+        @if (_bullishSignals.Any())
+        {
+            <h3 class="text-sm font-semibold text-success mb-2 mt-4">
+                Bullish Signals (@_bullishSignals.Count)
+            </h3>
+            <SignalBreakdown Signals="_bullishSignals" />
+        }
+
+        @if (_bearishSignals.Any())
+        {
+            <h3 class="text-sm font-semibold text-error mb-2 mt-4">
+                Bearish Signals (@_bearishSignals.Count)
+            </h3>
+            <SignalBreakdown Signals="_bearishSignals" />
+        }
+
+        @if (_neutralSignals.Any())
+        {
+            <h3 class="text-sm font-semibold text-on-surface-variant mb-2 mt-4">
+                Neutral Signals (@_neutralSignals.Count)
+            </h3>
+            <SignalBreakdown Signals="_neutralSignals" />
+        }
+
+        @if (_unavailableSignals.Any())
+        {
+            <h3 class="text-sm font-semibold text-on-surface-variant mb-2 mt-4">
+                Unavailable Signals (@_unavailableSignals.Count)
+            </h3>
+            <SignalBreakdown Signals="_unavailableSignals" />
+        }
     }
 </div>
 
@@ -75,10 +159,71 @@
     public string Ticker { get; set; } = "";
 
     private StockCandidate? _candidate;
+    private TickerHistory? _tickerHistory;
+    private bool _loading = true;
+    private double _maxHistoryScore = 1.0;
 
-    protected override void OnParametersSet()
+    private List<SignalResult> _bullishSignals = new();
+    private List<SignalResult> _bearishSignals = new();
+    private List<SignalResult> _neutralSignals = new();
+    private List<SignalResult> _unavailableSignals = new();
+
+    protected override async Task OnParametersSetAsync()
     {
+        _loading = true;
+
+        // 1. Try in-memory results first
         _candidate = ScanService.LatestResults
             .FirstOrDefault(c => c.Ticker.Equals(Ticker, StringComparison.OrdinalIgnoreCase));
+
+        // 2. Fall back to persisted latest scan
+        if (_candidate is null)
+        {
+            try
+            {
+                var latest = await StateStore.LoadLatestResultAsync();
+                _candidate = latest?.Candidates
+                    .FirstOrDefault(c => c.Ticker.Equals(Ticker, StringComparison.OrdinalIgnoreCase));
+            }
+            catch
+            {
+                // Persist layer unavailable — leave _candidate null
+            }
+        }
+
+        // 3. Group signals
+        if (_candidate is not null)
+        {
+            var signals = _candidate.SignalResults.ToList();
+            _unavailableSignals = signals.Where(s => !s.IsAvailable).ToList();
+            var available = signals.Where(s => s.IsAvailable).ToList();
+            _bullishSignals = available.Where(s => s.Score > 0).ToList();
+            _bearishSignals = available.Where(s => s.Score < 0).ToList();
+            _neutralSignals = available.Where(s => s.Score == 0).ToList();
+        }
+
+        // 4. Load ticker history
+        try
+        {
+            _tickerHistory = await HistoryStore.GetTickerHistoryAsync(Ticker);
+            if (_tickerHistory is not null && _tickerHistory.Appearances.Count > 0)
+            {
+                _maxHistoryScore = _tickerHistory.Appearances.Max(a => Math.Abs(a.FinalScore));
+                if (_maxHistoryScore == 0) _maxHistoryScore = 1.0;
+            }
+        }
+        catch
+        {
+            // History unavailable — no chart shown
+        }
+
+        _loading = false;
     }
+
+    private static string BarCss(double score) => score switch
+    {
+        >= 0.75 => "bg-success",
+        >= 0.65 => "bg-warning",
+        _ => "bg-error"
+    };
 }
