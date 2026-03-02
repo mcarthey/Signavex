@@ -3,7 +3,7 @@
 @using Signavex.Domain.Helpers
 @using Signavex.Domain.Models
 @using Signavex.Web.Services
-@inject ScanResultsService ScanService
+@inject ScanDashboardService DashboardService
 @inject ApiKeyValidationService ApiKeyService
 @inject IJSRuntime JS
 @rendermode InteractiveServer
@@ -16,13 +16,13 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-on-surface tracking-tight">Dashboard</h1>
-            @if (ScanService.LastScanTime.HasValue)
+            @if (_lastScanTime.HasValue)
             {
                 <p class="text-sm text-on-surface-variant mt-0.5">
-                    Last scan @RelativeTime(ScanService.LastScanTime.Value)
-                    @if (ScanService.LastScanErrors > 0)
+                    Last scan @RelativeTime(_lastScanTime.Value)
+                    @if (_lastScanErrors > 0)
                     {
-                        <span class="text-warning"> · @ScanService.LastScanErrors stock(s) skipped</span>
+                        <span class="text-warning"> · @_lastScanErrors stock(s) skipped</span>
                     }
                 </p>
             }
@@ -39,14 +39,18 @@
                 </button>
             }
             <button class="inline-flex items-center gap-2 rounded-[var(--radius-xl)] bg-primary px-5 py-2.5 text-sm font-medium text-on-primary shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    @onclick="RunScan" disabled="@ScanService.IsScanning">
-                @if (ScanService.IsScanning)
+                    @onclick="RunScan" disabled="@(_scanStatus?.IsScanning == true || _scanRequested)">
+                @if (_scanStatus?.IsScanning == true)
                 {
                     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     <span>Scanning...</span>
+                }
+                else if (_scanRequested)
+                {
+                    <span>Scan Requested</span>
                 }
                 else
                 {
@@ -76,53 +80,44 @@
     }
 
     @* Scan Progress *@
-    @if (ScanService.IsScanning && ScanService.CurrentProgress is not null)
+    @if (_scanStatus?.IsScanning == true)
     {
-        var p = ScanService.CurrentProgress;
-        var enhanced = p as EnhancedScanProgress;
+        var s = _scanStatus;
         <div class="mb-4 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
             <div class="flex items-center justify-between text-sm mb-2">
                 <span class="font-medium text-on-surface">
-                    @if (enhanced?.IsResuming == true)
-                    {
-                        <span class="inline-flex items-center gap-1.5 rounded-[var(--radius-xs)] bg-primary-container text-on-primary-container px-2 py-0.5 text-xs font-medium mr-2">Resumed</span>
-                    }
-                    Evaluating @p.CurrentTicker
+                    Evaluating @s.CurrentTicker
                 </span>
                 <span class="text-on-surface-variant">
-                    @p.Evaluated / @p.Total
-                    @if (enhanced?.EstimatedTimeRemaining is { } eta)
-                    {
-                        <span> · ~@FormatEta(eta) remaining</span>
-                    }
+                    @s.Evaluated / @s.Total
                 </span>
             </div>
             <div class="h-2 w-full rounded-[var(--radius-full)] bg-surface-container-high overflow-hidden">
                 <div class="h-full rounded-[var(--radius-full)] bg-primary transition-all duration-300 animate-pulse-bar"
-                     style="width: @(p.Total > 0 ? (p.Evaluated * 100 / p.Total) : 0)%"></div>
+                     style="width: @(s.Total > 0 ? (s.Evaluated * 100 / s.Total) : 0)%"></div>
             </div>
             <div class="flex items-center justify-between mt-1.5">
-                @if (p.ErrorCount > 0)
+                @if (s.ErrorCount > 0)
                 {
-                    <p class="text-xs text-warning">@p.ErrorCount error(s) so far</p>
+                    <p class="text-xs text-warning">@s.ErrorCount error(s) so far</p>
                 }
                 else
                 {
                     <span></span>
                 }
-                @if (enhanced?.CandidatesFound > 0)
+                @if (s.CandidatesFound > 0)
                 {
-                    <p class="text-xs text-success font-medium">@enhanced.CandidatesFound candidate(s) found</p>
+                    <p class="text-xs text-success font-medium">@s.CandidatesFound candidate(s) found</p>
                 }
             </div>
         </div>
     }
 
     @* Market Context *@
-    <MarketContextBar Context="ScanService.LatestMarketContext" />
+    <MarketContextBar Context="_marketContext" />
 
     @* Results *@
-    @if (!DisplayResults.Any() && !ScanService.IsScanning)
+    @if (!DisplayResults.Any() && _scanStatus?.IsScanning != true)
     {
         <div class="flex flex-col items-center justify-center py-16 text-center">
             <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
@@ -138,7 +133,7 @@
     }
     else if (DisplayResults.Any())
     {
-        @if (ScanService.IsScanning)
+        @if (_scanStatus?.IsScanning == true)
         {
             <h3 class="text-sm font-semibold text-on-surface-variant mb-3 flex items-center gap-2">
                 <span class="h-2 w-2 rounded-full bg-success animate-pulse"></span>
@@ -192,26 +187,90 @@
     private string _tierFilter = "";
     private string _sortBy = "score";
 
+    private ScanStatus? _scanStatus;
+    private MarketContext? _marketContext;
+    private IReadOnlyList<StockCandidate> _latestResults = Array.Empty<StockCandidate>();
+    private IReadOnlyList<StockCandidate> _liveCandidates = Array.Empty<StockCandidate>();
+    private DateTime? _lastScanTime;
+    private int _lastScanErrors;
+    private bool _scanRequested;
+
+    private Timer? _pollTimer;
+
     protected override async Task OnInitializedAsync()
     {
-        ScanService.OnScanCompleted += OnScanCompleted;
-        ScanService.OnProgressChanged += OnProgressChanged;
-        ScanService.OnCandidateFound += OnCandidateFound;
+        await LoadLatestResults();
+        await PollStatus();
 
-        await ScanService.EnsureInitializedAsync();
+        _pollTimer = new Timer(async _ =>
+        {
+            try
+            {
+                await PollStatus();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch
+            {
+                // Timer callback — swallow to avoid crashing the circuit
+            }
+        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
     }
 
-    /// <summary>
-    /// Returns live candidates during scan, or completed results when idle.
-    /// </summary>
+    private async Task LoadLatestResults()
+    {
+        try
+        {
+            var result = await DashboardService.GetLatestResultAsync();
+            if (result is not null)
+            {
+                _latestResults = result.Candidates;
+                _marketContext = result.MarketContext;
+                _lastScanTime = result.CompletedAtUtc;
+                _lastScanErrors = result.ErrorCount;
+            }
+        }
+        catch
+        {
+            // Persist layer unavailable
+        }
+    }
+
+    private async Task PollStatus()
+    {
+        try
+        {
+            _scanStatus = await DashboardService.GetScanStatusAsync();
+
+            if (_scanStatus.IsScanning)
+            {
+                _scanRequested = false;
+                _liveCandidates = await DashboardService.GetLiveCandidatesAsync();
+                _marketContext = await DashboardService.GetMarketContextAsync();
+            }
+            else
+            {
+                // If scan just completed, reload the latest results
+                if (_liveCandidates.Count > 0)
+                {
+                    await LoadLatestResults();
+                    _liveCandidates = Array.Empty<StockCandidate>();
+                }
+            }
+        }
+        catch
+        {
+            // Poll failure — skip this cycle
+        }
+    }
+
     private IEnumerable<StockCandidate> DisplayResults
     {
         get
         {
-            if (ScanService.IsScanning && ScanService.LiveCandidates.Count > 0)
-                return ScanService.LiveCandidates;
+            if (_scanStatus?.IsScanning == true && _liveCandidates.Count > 0)
+                return _liveCandidates;
 
-            return ScanService.LatestResults;
+            return _latestResults;
         }
     }
 
@@ -237,23 +296,19 @@
 
     private async Task RunScan()
     {
-        await ScanService.RunScanAsync();
+        _scanRequested = true;
+        await DashboardService.RequestScanAsync();
     }
 
     private async Task ExportCsv()
     {
-        var results = ScanService.LatestResults;
-        if (results.Count == 0)
+        if (_latestResults.Count == 0)
             return;
 
-        var csv = CsvExportHelper.GenerateCsv(results);
+        var csv = CsvExportHelper.GenerateCsv(_latestResults);
         var fileName = $"signavex-scan-{DateTime.UtcNow:yyyy-MM-dd}.csv";
         await JS.InvokeVoidAsync("downloadFile", fileName, csv);
     }
-
-    private void OnScanCompleted() => InvokeAsync(StateHasChanged);
-    private void OnProgressChanged() => InvokeAsync(StateHasChanged);
-    private void OnCandidateFound() => InvokeAsync(StateHasChanged);
 
     private static string RelativeTime(DateTime utcTime)
     {
@@ -264,21 +319,12 @@
         return $"{(int)elapsed.TotalDays}d ago";
     }
 
-    private static string FormatEta(TimeSpan eta)
-    {
-        if (eta.TotalMinutes < 1) return "<1m";
-        if (eta.TotalHours < 1) return $"{(int)eta.TotalMinutes}m";
-        return $"{(int)eta.TotalHours}h {eta.Minutes}m";
-    }
-
     private static string ChipCss(bool active) => active
         ? "rounded-[var(--radius-sm)] bg-primary text-on-primary px-3 py-1.5 text-xs font-medium transition-colors"
         : "rounded-[var(--radius-sm)] bg-surface-container text-on-surface-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container-high";
 
     public void Dispose()
     {
-        ScanService.OnScanCompleted -= OnScanCompleted;
-        ScanService.OnProgressChanged -= OnProgressChanged;
-        ScanService.OnCandidateFound -= OnCandidateFound;
+        _pollTimer?.Dispose();
     }
 }

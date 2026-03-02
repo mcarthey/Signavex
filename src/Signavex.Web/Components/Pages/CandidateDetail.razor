@@ -1,8 +1,6 @@
 @page "/candidate/{Ticker}"
 @using Signavex.Domain.Interfaces
 @using Signavex.Domain.Models
-@using Signavex.Web.Services
-@inject ScanResultsService ScanService
 @inject IScanHistoryStore HistoryStore
 @inject IScanStateStore StateStore
 @inject NavigationManager Nav
@@ -172,26 +170,19 @@
     {
         _loading = true;
 
-        // 1. Try in-memory results first
-        _candidate = ScanService.LatestResults
-            .FirstOrDefault(c => c.Ticker.Equals(Ticker, StringComparison.OrdinalIgnoreCase));
-
-        // 2. Fall back to persisted latest scan
-        if (_candidate is null)
+        // Load from persisted latest scan
+        try
         {
-            try
-            {
-                var latest = await StateStore.LoadLatestResultAsync();
-                _candidate = latest?.Candidates
-                    .FirstOrDefault(c => c.Ticker.Equals(Ticker, StringComparison.OrdinalIgnoreCase));
-            }
-            catch
-            {
-                // Persist layer unavailable — leave _candidate null
-            }
+            var latest = await StateStore.LoadLatestResultAsync();
+            _candidate = latest?.Candidates
+                .FirstOrDefault(c => c.Ticker.Equals(Ticker, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            // Persist layer unavailable — leave _candidate null
         }
 
-        // 3. Group signals
+        // Group signals
         if (_candidate is not null)
         {
             var signals = _candidate.SignalResults.ToList();
@@ -202,7 +193,7 @@
             _neutralSignals = available.Where(s => s.Score == 0).ToList();
         }
 
-        // 4. Load ticker history
+        // Load ticker history
         try
         {
             _tickerHistory = await HistoryStore.GetTickerHistoryAsync(Ticker);

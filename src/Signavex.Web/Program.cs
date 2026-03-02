@@ -20,7 +20,13 @@ var providerOptions = builder.Configuration
     .GetSection(DataProviderOptions.SectionName)
     .Get<DataProviderOptions>() ?? new DataProviderOptions();
 
-var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "data");
+var signavexOptions = builder.Configuration
+    .GetSection(SignavexOptions.SectionName)
+    .Get<SignavexOptions>() ?? new SignavexOptions();
+
+var dataDirectory = !string.IsNullOrWhiteSpace(signavexOptions.DataDirectory)
+    ? signavexOptions.DataDirectory
+    : Path.Combine(builder.Environment.ContentRootPath, "data");
 
 // Register domain layers
 builder.Services
@@ -29,13 +35,9 @@ builder.Services
     .AddSignavexInfrastructure(providerOptions, dataDirectory);
 
 // Application services
-builder.Services.AddSingleton<ScanResultsService>();
+builder.Services.AddSingleton<ScanDashboardService>();
 builder.Services.AddSingleton<BacktestRunnerService>();
 builder.Services.AddSingleton<ApiKeyValidationService>();
-
-// Background services
-builder.Services.AddHostedService<ScanResumeBackgroundService>();
-builder.Services.AddHostedService<DailyScanBackgroundService>();
 
 // Blazor
 builder.Services.AddRazorComponents()
@@ -50,6 +52,7 @@ using (var scope = app.Services.CreateScope())
     using var db = await factory.CreateDbContextAsync();
     await db.Database.MigrateAsync();
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
+    await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
 }
 
 if (!app.Environment.IsDevelopment())
