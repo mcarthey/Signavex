@@ -431,3 +431,4 @@ coverage-report/
 # Environment-specific settings (contain API keys)
 **/appsettings.Development.json
 **/appsettings.Production.json
+src/Signavex.Worker/appsettings.json
