@@ -1,0 +1,59 @@
+using Microsoft.EntityFrameworkCore;
+using Signavex.Domain.Configuration;
+using Signavex.Engine;
+using Signavex.Infrastructure;
+using Signavex.Infrastructure.Persistence;
+using Signavex.Signals;
+using Signavex.Worker;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = "Signavex Scanner";
+});
+
+// Bind configuration options
+builder.Services.Configure<SignavexOptions>(
+    builder.Configuration.GetSection(SignavexOptions.SectionName));
+
+builder.Services.Configure<DataProviderOptions>(
+    builder.Configuration.GetSection(DataProviderOptions.SectionName));
+
+var providerOptions = builder.Configuration
+    .GetSection(DataProviderOptions.SectionName)
+    .Get<DataProviderOptions>() ?? new DataProviderOptions();
+
+var signavexOptions = builder.Configuration
+    .GetSection(SignavexOptions.SectionName)
+    .Get<SignavexOptions>() ?? new SignavexOptions();
+
+var dataDirectory = !string.IsNullOrWhiteSpace(signavexOptions.DataDirectory)
+    ? signavexOptions.DataDirectory
+    : Path.Combine(builder.Environment.ContentRootPath, "data");
+
+// Register domain layers (same chain as Web minus Blazor)
+builder.Services
+    .AddSignavexSignals()
+    .AddSignavexEngine()
+    .AddSignavexInfrastructure(providerOptions, dataDirectory);
+
+// Worker services
+builder.Services.AddSingleton<WorkerScanOrchestrator>();
+builder.Services.AddHostedService<ScanCommandPollingService>();
+builder.Services.AddHostedService<ScanResumeBackgroundService>();
+builder.Services.AddHostedService<DailyScanBackgroundService>();
+
+var host = builder.Build();
+
+// Auto-migrate SQLite database
+using (var scope = host.Services.CreateScope())
+{
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
+    using var db = await factory.CreateDbContextAsync();
+    await db.Database.MigrateAsync();
+    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
+    await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
+}
+
+host.Run();
