@@ -6,6 +6,7 @@ using Signavex.Infrastructure.Persistence;
 using Signavex.Signals;
 using Signavex.Web.Components;
 using Signavex.Web.Services;
+using Signavex.Worker;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,9 @@ builder.Services.Configure<SignavexOptions>(
 
 builder.Services.Configure<DataProviderOptions>(
     builder.Configuration.GetSection(DataProviderOptions.SectionName));
+
+builder.Services.Configure<AnthropicOptions>(
+    builder.Configuration.GetSection(AnthropicOptions.SectionName));
 
 var providerOptions = builder.Configuration
     .GetSection(DataProviderOptions.SectionName)
@@ -41,6 +45,17 @@ builder.Services.AddSingleton<BacktestRunnerService>();
 builder.Services.AddSingleton<ApiKeyValidationService>();
 builder.Services.AddSingleton<EconomicDashboardService>();
 builder.Services.AddSingleton<DailyBriefService>();
+
+// Optionally run Worker background services in-process (production single-process mode)
+if (signavexOptions.RunBackgroundServices)
+{
+    builder.Services.AddSingleton<WorkerScanOrchestrator>();
+    builder.Services.AddHostedService<ScanCommandPollingService>();
+    builder.Services.AddHostedService<ScanResumeBackgroundService>();
+    builder.Services.AddHostedService<DailyScanBackgroundService>();
+    builder.Services.AddHostedService<EconomicDataSyncService>();
+    builder.Services.AddHostedService<DailyBriefBackgroundService>();
+}
 
 // Blazor
 builder.Services.AddRazorComponents()

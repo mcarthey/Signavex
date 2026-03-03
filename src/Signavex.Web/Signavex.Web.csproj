@@ -5,6 +5,7 @@
     <ProjectReference Include="..\Signavex.Engine\Signavex.Engine.csproj" />
     <ProjectReference Include="..\Signavex.Infrastructure\Signavex.Infrastructure.csproj" />
     <ProjectReference Include="..\Signavex.Signals\Signavex.Signals.csproj" />
+    <ProjectReference Include="..\Signavex.Worker\Signavex.Worker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

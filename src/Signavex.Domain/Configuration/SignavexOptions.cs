@@ -29,6 +29,8 @@ public class SignavexOptions
 
     public string ConnectionString { get; set; } = "";
 
+    public bool RunBackgroundServices { get; set; } = false;
+
     public SignalWeightsOptions SignalWeights { get; set; } = new();
 
     public MarketSignalWeightsOptions MarketSignalWeights { get; set; } = new();
