@@ -2,7 +2,6 @@
 @using Signavex.Domain.Analysis
 @using Signavex.Domain.Interfaces
 @using Signavex.Web.Services
-@using Signavex.Web.Components.Shared
 @inject EconomicDashboardService EconService
 @inject IEconomicDataStore DataStore
 @implements IDisposable
@@ -177,6 +176,8 @@
         </div>
     }
 </div>
+
+<Disclaimer />
 
 @code {
     private bool _loading = true;
