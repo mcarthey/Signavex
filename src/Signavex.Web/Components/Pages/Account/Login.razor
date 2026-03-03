@@ -28,13 +28,13 @@
             <div class="space-y-4">
                 <div>
                     <label for="email" class="block text-sm font-medium text-on-surface mb-1">Email</label>
-                    <input id="email" type="email" @bind="_email" required autocomplete="username"
+                    <input id="email" name="Input.Email" type="email" value="@Input.Email" required autocomplete="username"
                            class="w-full rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
 
                 <div>
                     <label for="password" class="block text-sm font-medium text-on-surface mb-1">Password</label>
-                    <input id="password" type="password" @bind="_password" required autocomplete="current-password"
+                    <input id="password" name="Input.Password" type="password" required autocomplete="current-password"
                            class="w-full rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
 
@@ -53,19 +53,20 @@
 </div>
 
 @code {
-    private string _email = "";
-    private string _password = "";
+    [SupplyParameterFromForm]
+    private LoginInput Input { get; set; } = new();
+
     private string? _error;
 
     private async Task HandleLogin()
     {
-        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        if (string.IsNullOrWhiteSpace(Input.Email) || string.IsNullOrWhiteSpace(Input.Password))
         {
             _error = "Please enter your email and password.";
             return;
         }
 
-        var result = await SignInManager.PasswordSignInAsync(_email, _password, isPersistent: true, lockoutOnFailure: false);
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, isPersistent: true, lockoutOnFailure: false);
 
         if (result.Succeeded)
         {
@@ -75,5 +76,11 @@
         {
             _error = "Invalid email or password.";
         }
+    }
+
+    private sealed class LoginInput
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
     }
 }

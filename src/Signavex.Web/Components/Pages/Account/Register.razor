@@ -34,19 +34,19 @@
             <div class="space-y-4">
                 <div>
                     <label for="email" class="block text-sm font-medium text-on-surface mb-1">Email</label>
-                    <input id="email" type="email" @bind="_email" required autocomplete="username"
+                    <input id="email" name="Input.Email" type="email" value="@Input.Email" required autocomplete="username"
                            class="w-full rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
 
                 <div>
                     <label for="password" class="block text-sm font-medium text-on-surface mb-1">Password</label>
-                    <input id="password" type="password" @bind="_password" required autocomplete="new-password"
+                    <input id="password" name="Input.Password" type="password" required autocomplete="new-password"
                            class="w-full rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
 
                 <div>
                     <label for="confirmPassword" class="block text-sm font-medium text-on-surface mb-1">Confirm Password</label>
-                    <input id="confirmPassword" type="password" @bind="_confirmPassword" required autocomplete="new-password"
+                    <input id="confirmPassword" name="Input.ConfirmPassword" type="password" required autocomplete="new-password"
                            class="w-full rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
 
@@ -65,29 +65,29 @@
 </div>
 
 @code {
-    private string _email = "";
-    private string _password = "";
-    private string _confirmPassword = "";
+    [SupplyParameterFromForm]
+    private RegisterInput Input { get; set; } = new();
+
     private List<string> _errors = new();
 
     private async Task HandleRegister()
     {
         _errors.Clear();
 
-        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        if (string.IsNullOrWhiteSpace(Input.Email) || string.IsNullOrWhiteSpace(Input.Password))
         {
             _errors.Add("Please fill in all fields.");
             return;
         }
 
-        if (_password != _confirmPassword)
+        if (Input.Password != Input.ConfirmPassword)
         {
             _errors.Add("Passwords do not match.");
             return;
         }
 
-        var user = new ApplicationUser { UserName = _email, Email = _email };
-        var result = await UserManager.CreateAsync(user, _password);
+        var user = new ApplicationUser { UserName = Input.Email, Email = Input.Email };
+        var result = await UserManager.CreateAsync(user, Input.Password);
 
         if (result.Succeeded)
         {
@@ -101,5 +101,12 @@
                 _errors.Add(error.Description);
             }
         }
+    }
+
+    private sealed class RegisterInput
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
     }
 }
