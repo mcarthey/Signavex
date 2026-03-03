@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Signavex.Infrastructure.Persistence.Entities;
 
 namespace Signavex.Infrastructure.Persistence;
 
-public class SignavexDbContext : DbContext
+public class SignavexDbContext : IdentityDbContext<ApplicationUser>
 {
     public SignavexDbContext(DbContextOptions<SignavexDbContext> options) : base(options) { }
 
@@ -18,6 +19,8 @@ public class SignavexDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<ScanRunEntity>(e =>
         {
             e.ToTable("ScanRuns");

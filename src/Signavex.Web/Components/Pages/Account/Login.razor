@@ -1,0 +1,79 @@
+@page "/account/login"
+@using Microsoft.AspNetCore.Identity
+@using Signavex.Infrastructure.Persistence
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+
+<PageTitle>Sign In — Signavex</PageTitle>
+
+<div class="flex min-h-[60vh] items-center justify-center">
+    <div class="w-full max-w-sm">
+        <div class="mb-8 text-center">
+            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-primary text-on-primary font-bold text-xl">
+                S
+            </div>
+            <h1 class="text-2xl font-bold text-on-surface">Sign in to Signavex</h1>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="mb-4 rounded-[var(--radius-sm)] bg-error/15 px-4 py-3 text-sm text-error">
+                @_error
+            </div>
+        }
+
+        <form method="post" @onsubmit="HandleLogin" @formname="login">
+            <AntiforgeryToken />
+
+            <div class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-on-surface mb-1">Email</label>
+                    <input id="email" type="email" @bind="_email" required autocomplete="username"
+                           class="w-full rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-on-surface mb-1">Password</label>
+                    <input id="password" type="password" @bind="_password" required autocomplete="current-password"
+                           class="w-full rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+
+                <button type="submit"
+                        class="w-full rounded-[var(--radius-sm)] bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90">
+                    Sign In
+                </button>
+            </div>
+        </form>
+
+        <p class="mt-6 text-center text-sm text-on-surface-variant">
+            Don't have an account?
+            <a href="/account/register" class="text-primary hover:underline">Register</a>
+        </p>
+    </div>
+</div>
+
+@code {
+    private string _email = "";
+    private string _password = "";
+    private string? _error;
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Please enter your email and password.";
+            return;
+        }
+
+        var result = await SignInManager.PasswordSignInAsync(_email, _password, isPersistent: true, lockoutOnFailure: false);
+
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            _error = "Invalid email or password.";
+        }
+    }
+}

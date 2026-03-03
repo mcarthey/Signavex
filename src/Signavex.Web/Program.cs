@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Signavex.Domain.Configuration;
 using Signavex.Engine;
@@ -38,6 +39,26 @@ builder.Services
     .AddSignavexEngine()
     .AddSignavexInfrastructure(providerOptions, dataDirectory,
         signavexOptions.DatabaseProvider, signavexOptions.ConnectionString);
+
+// ASP.NET Identity
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    options.Password.RequiredLength = 8;
+    options.Password.RequireNonAlphanumeric = false;
+    options.SignIn.RequireConfirmedAccount = false;
+})
+.AddEntityFrameworkStores<SignavexDbContext>()
+.AddDefaultTokenProviders();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/account/login";
+    options.LogoutPath = "/account/logout";
+    options.AccessDeniedPath = "/account/login";
+    options.Cookie.HttpOnly = true;
+    options.ExpireTimeSpan = TimeSpan.FromDays(30);
+    options.SlidingExpiration = true;
+});
 
 // Application services
 builder.Services.AddSingleton<ScanDashboardService>();
@@ -88,7 +109,17 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseAntiforgery();
+
+app.MapPost("/account/logout", async (SignInManager<ApplicationUser> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/account/login");
+}).DisableAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
