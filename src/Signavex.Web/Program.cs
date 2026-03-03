@@ -32,7 +32,8 @@ var dataDirectory = !string.IsNullOrWhiteSpace(signavexOptions.DataDirectory)
 builder.Services
     .AddSignavexSignals()
     .AddSignavexEngine()
-    .AddSignavexInfrastructure(providerOptions, dataDirectory);
+    .AddSignavexInfrastructure(providerOptions, dataDirectory,
+        signavexOptions.DatabaseProvider, signavexOptions.ConnectionString);
 
 // Application services
 builder.Services.AddSingleton<ScanDashboardService>();
@@ -53,8 +54,12 @@ using (var scope = app.Services.CreateScope())
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
     using var db = await factory.CreateDbContextAsync();
     await db.Database.MigrateAsync();
-    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
-    await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
+
+    if (string.Equals(signavexOptions.DatabaseProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
+    {
+        await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
+        await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
+    }
 
     var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("EconomicDataSeeder");
     await EconomicDataSeeder.SeedAsync(factory, seedLogger);

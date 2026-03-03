@@ -22,15 +22,25 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSignavexInfrastructure(
         this IServiceCollection services,
         DataProviderOptions providerOptions,
-        string dataDirectory = "data")
+        string dataDirectory = "data",
+        string databaseProvider = "Sqlite",
+        string connectionString = "")
     {
         services.AddMemoryCache();
 
-        // SQLite persistence (checkpoints, completed results, scan history)
-        var dbPath = Path.Combine(dataDirectory, "signavex.db");
-        Directory.CreateDirectory(dataDirectory);
-        services.AddDbContextFactory<SignavexDbContext>(options =>
-            options.UseSqlite($"Data Source={dbPath}"));
+        // Database persistence — SQLite (default/local) or SQL Server (production)
+        if (string.Equals(databaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddDbContextFactory<SignavexDbContext>(options =>
+                options.UseSqlServer(connectionString));
+        }
+        else
+        {
+            var dbPath = Path.Combine(dataDirectory, "signavex.db");
+            Directory.CreateDirectory(dataDirectory);
+            services.AddDbContextFactory<SignavexDbContext>(options =>
+                options.UseSqlite($"Data Source={dbPath}"));
+        }
 
         services.AddSingleton<IScanStateStore, SqliteScanStateStore>();
         services.AddSingleton<IScanHistoryStore, SqliteScanHistoryStore>();

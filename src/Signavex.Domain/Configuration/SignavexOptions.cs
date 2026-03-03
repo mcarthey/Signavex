@@ -25,6 +25,10 @@ public class SignavexOptions
     /// </summary>
     public string DataDirectory { get; set; } = "";
 
+    public string DatabaseProvider { get; set; } = "Sqlite";
+
+    public string ConnectionString { get; set; } = "";
+
     public SignalWeightsOptions SignalWeights { get; set; } = new();
 
     public MarketSignalWeightsOptions MarketSignalWeights { get; set; } = new();
