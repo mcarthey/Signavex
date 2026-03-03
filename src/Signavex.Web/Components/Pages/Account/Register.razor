@@ -70,6 +70,8 @@
 
     private List<string> _errors = new();
 
+    protected override void OnInitialized() => Input ??= new();
+
     private async Task HandleRegister()
     {
         _errors.Clear();

@@ -58,6 +58,8 @@
 
     private string? _error;
 
+    protected override void OnInitialized() => Input ??= new();
+
     private async Task HandleLogin()
     {
         if (string.IsNullOrWhiteSpace(Input.Email) || string.IsNullOrWhiteSpace(Input.Password))
