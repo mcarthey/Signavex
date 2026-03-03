@@ -128,9 +128,7 @@ public class DailyBriefBackgroundService : BackgroundService
 
     private async Task<DailyBriefContext> BuildContextAsync(CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(
-            TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
-                TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time")));
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
         // Load scan data
         var latestScan = await _scanStateStore.LoadLatestResultAsync(ct);

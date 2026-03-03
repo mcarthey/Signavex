@@ -5,7 +5,7 @@ public class DailyScanBackgroundService : BackgroundService
     private readonly WorkerScanOrchestrator _orchestrator;
     private readonly ILogger<DailyScanBackgroundService> _logger;
 
-    private static readonly TimeSpan RunTime = new(17, 0, 0); // 5:00 PM ET
+    private static readonly TimeSpan RunTimeUtc = new(22, 0, 0); // 5:00 PM ET → 10:00 PM UTC
 
     public DailyScanBackgroundService(
         WorkerScanOrchestrator orchestrator,
@@ -44,11 +44,10 @@ public class DailyScanBackgroundService : BackgroundService
 
     internal static TimeSpan GetDelayUntilNextRun()
     {
-        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
-            TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
-        var nextRun = now.Date.Add(RunTime);
+        var now = DateTime.UtcNow;
+        var nextRun = now.Date.Add(RunTimeUtc);
 
-        if (now.TimeOfDay >= RunTime)
+        if (now.TimeOfDay >= RunTimeUtc)
             nextRun = nextRun.AddDays(1);
 
         // Skip weekends

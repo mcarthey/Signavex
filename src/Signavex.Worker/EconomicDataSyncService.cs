@@ -10,7 +10,7 @@ public class EconomicDataSyncService : BackgroundService
     private readonly ILogger<EconomicDataSyncService> _logger;
 
     public const string CommandType = "EconomicSync";
-    private static readonly TimeSpan RunTime = new(16, 30, 0); // 4:30 PM ET
+    private static readonly TimeSpan RunTimeUtc = new(21, 30, 0); // 4:30 PM ET → 9:30 PM UTC
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
     private bool _isSyncing;
 
@@ -172,11 +172,10 @@ public class EconomicDataSyncService : BackgroundService
 
     internal static TimeSpan GetDelayUntilNextRun()
     {
-        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
-            TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
-        var nextRun = now.Date.Add(RunTime);
+        var now = DateTime.UtcNow;
+        var nextRun = now.Date.Add(RunTimeUtc);
 
-        if (now.TimeOfDay >= RunTime)
+        if (now.TimeOfDay >= RunTimeUtc)
             nextRun = nextRun.AddDays(1);
 
         // Skip weekends
