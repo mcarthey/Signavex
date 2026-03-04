@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Signavex.Domain.Configuration;
@@ -93,6 +94,25 @@ if (signavexOptions.RunBackgroundServices)
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ProRequired", policy => policy.RequireRole("Pro"));
 
+// Health checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<SignavexDbContext>();
+
+// Rate limiting for public pages
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("public", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 // Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -138,10 +158,14 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseAntiforgery();
+
+app.MapHealthChecks("/health");
 
 app.MapPost("/account/logout", async (SignInManager<ApplicationUser> signInManager) =>
 {
