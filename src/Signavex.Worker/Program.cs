@@ -52,15 +52,19 @@ builder.Services.AddHostedService<DailyBriefBackgroundService>();
 
 var host = builder.Build();
 
-// Auto-migrate SQLite database and seed economic data
+// Initialize database and seed economic data
 using (var scope = host.Services.CreateScope())
 {
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
     using var db = await factory.CreateDbContextAsync();
-    await db.Database.MigrateAsync();
 
-    if (string.Equals(signavexOptions.DatabaseProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
+    if (string.Equals(signavexOptions.DatabaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
     {
+        await db.Database.MigrateAsync();
+    }
+    else
+    {
+        await db.Database.EnsureCreatedAsync();
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
         await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
     }
