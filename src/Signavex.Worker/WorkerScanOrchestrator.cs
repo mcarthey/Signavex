@@ -100,6 +100,7 @@ public class WorkerScanOrchestrator
         var allCandidates = new List<StockCandidate>(resumeState?.CandidatesSoFar ?? new List<StockCandidate>());
         MarketContext? marketContext = resumeState?.MarketContext;
         var lastKnownErrorCount = resumeState?.PriorErrorCount ?? 0;
+        IReadOnlyList<string>? universeTickers = null;
 
         // Progress callback — captures total from engine
         var lastKnownTotal = 0;
@@ -128,7 +129,7 @@ public class WorkerScanOrchestrator
                 {
                     var checkpointData = new ScanCheckpoint(
                         scanId, scanStartTime, marketContext,
-                        evaluatedTickers.AsReadOnly(),
+                        universeTickers ?? evaluatedTickers.AsReadOnly(),
                         evaluatedTickers.AsReadOnly(),
                         allCandidates.AsReadOnly(),
                         lastKnownErrorCount);
@@ -146,6 +147,9 @@ public class WorkerScanOrchestrator
         {
             using var scope = _scopeFactory.CreateScope();
             var engine = scope.ServiceProvider.GetRequiredService<ScanEngine>();
+            var universeProvider = scope.ServiceProvider.GetRequiredService<UniverseProvider>();
+            universeTickers = (await universeProvider.GetUniverseAsync())
+                .Select(u => u.Ticker).ToList().AsReadOnly();
 
             var result = await engine.RunScanAsync(progress, resumeState, onStockEvaluated, ctx =>
             {
