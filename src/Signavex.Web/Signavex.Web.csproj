@@ -14,6 +14,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Stripe.net" Version="50.4.0" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -23,8 +24,7 @@
   </PropertyGroup>
 
   <Target Name="TailwindBuild" BeforeTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\.tailwind\tailwindcss.exe')">
-    <Exec Command="$(MSBuildProjectDirectory)\.tailwind\tailwindcss.exe -i Styles/app.css -o wwwroot/css/app.built.css --minify"
-          WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="$(MSBuildProjectDirectory)\.tailwind\tailwindcss.exe -i Styles/app.css -o wwwroot/css/app.built.css --minify" WorkingDirectory="$(MSBuildProjectDirectory)" />
   </Target>
 
 </Project>

@@ -1,0 +1,41 @@
+@using Microsoft.AspNetCore.Identity
+@using Signavex.Infrastructure.Persistence
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+@if (_showPrompt)
+{
+    <div class="rounded-[var(--radius-md)] border border-primary/30 bg-primary/5 p-6 text-center">
+        <h3 class="text-lg font-semibold text-on-surface mb-2">@Title</h3>
+        <p class="text-sm text-on-surface-variant mb-4">
+            @Description
+        </p>
+        <form method="post" action="/account/upgrade">
+            <button type="submit"
+                    class="rounded-[var(--radius-sm)] bg-primary px-6 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90">
+                Upgrade to Pro
+            </button>
+        </form>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Unlock Full Access";
+
+    [Parameter]
+    public string Description { get; set; } = "Upgrade to Signavex Pro to access this feature, along with full scan results, historical data, backtesting, and custom settings.";
+
+    private bool _showPrompt;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _showPrompt = !user.IsInRole("Pro");
+        }
+    }
+}
