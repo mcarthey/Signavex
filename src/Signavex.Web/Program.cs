@@ -78,6 +78,10 @@ if (signavexOptions.RunBackgroundServices)
     builder.Services.AddHostedService<DailyBriefBackgroundService>();
 }
 
+// Authorization policies
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("ProRequired", policy => policy.RequireRole("Pro"));
+
 // Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -103,6 +107,9 @@ using (var scope = app.Services.CreateScope())
 
     var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("EconomicDataSeeder");
     await EconomicDataSeeder.SeedAsync(factory, seedLogger);
+
+    var roleLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("RoleSeeder");
+    await RoleSeeder.SeedAsync(scope.ServiceProvider, roleLogger);
 }
 
 if (!app.Environment.IsDevelopment())

@@ -93,6 +93,7 @@
 
         if (result.Succeeded)
         {
+            await UserManager.AddToRoleAsync(user, "Free");
             await SignInManager.SignInAsync(user, isPersistent: true);
             Navigation.NavigateTo("/", forceLoad: true);
         }
