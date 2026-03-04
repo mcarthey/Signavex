@@ -10,7 +10,7 @@
 
         <section>
             <h2 class="text-lg font-semibold text-on-surface mb-2">1. Information We Collect</h2>
-            <p>When you create an account, we collect your email address and password (stored as a salted hash). We do not collect payment information, social media profiles, or other personal data.</p>
+            <p>When you create an account, we collect your email address and password (stored as a salted hash). If you subscribe to a paid plan, payment information is collected and processed by Stripe — we do not store your credit card details on our servers. We do not collect social media profiles or other personal data.</p>
         </section>
 
         <section>
@@ -25,7 +25,13 @@
 
         <section>
             <h2 class="text-lg font-semibold text-on-surface mb-2">4. Third-Party Services</h2>
-            <p>The Service integrates with third-party data providers (Polygon.io, Alpha Vantage, FRED, Anthropic) to retrieve market data and generate AI analysis. These providers have their own privacy policies. No personal user data is shared with these providers.</p>
+            <p>The Service integrates with the following third-party services:</p>
+            <ul class="list-disc pl-5 mt-2 space-y-1">
+                <li><strong class="text-on-surface">Data Providers</strong> (Polygon.io, Alpha Vantage, FRED): retrieve market and economic data. No personal user data is shared with these providers.</li>
+                <li><strong class="text-on-surface">Anthropic</strong>: generates AI-powered market analysis. No personal user data is shared.</li>
+                <li><strong class="text-on-surface">Stripe</strong>: processes subscription payments. Stripe collects payment information directly on their hosted checkout page. See <a href="https://stripe.com/privacy" class="text-primary hover:underline" target="_blank">Stripe's Privacy Policy</a>.</li>
+                <li><strong class="text-on-surface">SendGrid</strong>: delivers transactional emails (account verification, password reset). Your email address is shared with SendGrid for delivery purposes only. See <a href="https://www.twilio.com/legal/privacy" class="text-primary hover:underline" target="_blank">Twilio/SendGrid Privacy Policy</a>.</li>
+            </ul>
         </section>
 
         <section>
