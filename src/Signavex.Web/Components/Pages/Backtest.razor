@@ -7,6 +7,7 @@
 @inject BacktestRunnerService BacktestService
 @inject ApiKeyValidationService ApiKeyService
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -19,113 +20,124 @@
             <h1 class="text-2xl font-bold text-on-surface tracking-tight">Backtest</h1>
             <p class="text-sm text-on-surface-variant mt-0.5">Simulate a scan as of a historical date</p>
         </div>
-        <div class="flex items-center gap-2">
-            <label for="asOfDate" class="text-sm text-on-surface-variant">As-of:</label>
-            <input type="date" id="asOfDate"
-                   class="rounded-[var(--radius-sm)] border border-outline bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary"
-                   @bind="_asOfDate" max="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" />
-            <button class="inline-flex items-center gap-2 rounded-[var(--radius-xl)] bg-primary px-5 py-2.5 text-sm font-medium text-on-primary shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    @onclick="RunBacktest" disabled="@BacktestService.IsRunning">
-                @if (BacktestService.IsRunning)
-                {
-                    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Running...</span>
-                }
-                else
-                {
-                    <span>Run Backtest</span>
-                }
-            </button>
-        </div>
-    </div>
-
-    @* API Key Warning *@
-    @if (!ApiKeyService.HasAllKeys)
-    {
-        <div class="mb-4 flex items-start gap-3 rounded-[var(--radius-md)] border border-warning/30 bg-warning-container/30 p-4">
-            <svg class="h-5 w-5 shrink-0 text-warning mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-            <div>
-                <p class="text-sm font-medium text-on-surface">API keys not configured</p>
-                <p class="text-sm text-on-surface-variant mt-0.5">
-                    Backtests require API access. Configure keys in
-                    <a href="/settings" class="text-primary font-medium hover:underline">Settings</a>.
-                </p>
-            </div>
-        </div>
-    }
-
-    @if (BacktestService.LatestResult is not null)
-    {
-        var result = BacktestService.LatestResult;
-
-        @* Result summary *@
-        <div class="mb-4 rounded-[var(--radius-md)] border border-primary/20 bg-primary-container/10 p-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-on-surface">
-                        As-of @result.AsOfDate.ToString("yyyy-MM-dd") — @result.Candidates.Count candidate(s) surfaced
-                    </p>
-                    @if (result.Caveat is not null)
-                    {
-                        <p class="text-xs text-on-surface-variant mt-1">@result.Caveat</p>
-                    }
-                </div>
-                @if (result.Candidates.Count > 0)
-                {
-                    <button class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-outline px-3 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container"
-                            @onclick="ExportCsv">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        CSV
-                    </button>
-                }
-            </div>
-        </div>
-
-        <MarketContextBar Context="result.MarketContext" />
-
-        @if (result.Candidates.Count > 0)
+        @if (_isPro)
         {
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                @foreach (var candidate in result.Candidates)
-                {
-                    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1">
-                        <div class="flex items-start justify-between mb-2">
-                            <div>
-                                <span class="text-base font-bold text-on-surface">@candidate.Ticker</span>
-                                <p class="text-xs text-on-surface-variant mt-0.5">@candidate.CompanyName</p>
-                            </div>
-                            <ScoreBadge Score="candidate.FinalScore" />
-                        </div>
-                        <div class="flex items-center gap-3 text-xs text-on-surface-variant">
-                            <span class="rounded-[var(--radius-xs)] bg-surface-container px-1.5 py-0.5 font-medium">@candidate.Tier</span>
-                            <span>Raw: @candidate.RawScore.ToString("F3")</span>
-                            <span>@candidate.SignalResults.Count(s => s.IsAvailable) signals</span>
-                        </div>
-                    </div>
-                }
+            <div class="flex items-center gap-2">
+                <label for="asOfDate" class="text-sm text-on-surface-variant">As-of:</label>
+                <input type="date" id="asOfDate"
+                       class="rounded-[var(--radius-sm)] border border-outline bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary"
+                       @bind="_asOfDate" max="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" />
+                <button class="inline-flex items-center gap-2 rounded-[var(--radius-xl)] bg-primary px-5 py-2.5 text-sm font-medium text-on-primary shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                        @onclick="RunBacktest" disabled="@BacktestService.IsRunning">
+                    @if (BacktestService.IsRunning)
+                    {
+                        <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Running...</span>
+                    }
+                    else
+                    {
+                        <span>Run Backtest</span>
+                    }
+                </button>
             </div>
         }
-    }
-    else if (!BacktestService.IsRunning)
+    </div>
+
+    @if (!_isPro)
     {
-        <div class="flex flex-col items-center justify-center py-16 text-center">
-            <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
-                <svg class="h-8 w-8 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <UpgradePrompt Title="Unlock Backtesting"
+                       Description="Run historical simulations to see what candidates would have surfaced on any past date." />
+    }
+    else
+    {
+        @* API Key Warning *@
+        @if (!ApiKeyService.HasAllKeys)
+        {
+            <div class="mb-4 flex items-start gap-3 rounded-[var(--radius-md)] border border-warning/30 bg-warning-container/30 p-4">
+                <svg class="h-5 w-5 shrink-0 text-warning mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                 </svg>
+                <div>
+                    <p class="text-sm font-medium text-on-surface">API keys not configured</p>
+                    <p class="text-sm text-on-surface-variant mt-0.5">
+                        Backtests require API access. Configure keys in
+                        <a href="/settings" class="text-primary font-medium hover:underline">Settings</a>.
+                    </p>
+                </div>
             </div>
-            <h3 class="text-base font-semibold text-on-surface">No backtest results</h3>
-            <p class="mt-1 text-sm text-on-surface-variant max-w-sm">
-                Select a historical date and click <strong>Run Backtest</strong> to simulate what the scan would have produced.
-            </p>
-        </div>
+        }
+
+        @if (BacktestService.LatestResult is not null)
+        {
+            var result = BacktestService.LatestResult;
+
+            @* Result summary *@
+            <div class="mb-4 rounded-[var(--radius-md)] border border-primary/20 bg-primary-container/10 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-on-surface">
+                            As-of @result.AsOfDate.ToString("yyyy-MM-dd") — @result.Candidates.Count candidate(s) surfaced
+                        </p>
+                        @if (result.Caveat is not null)
+                        {
+                            <p class="text-xs text-on-surface-variant mt-1">@result.Caveat</p>
+                        }
+                    </div>
+                    @if (result.Candidates.Count > 0)
+                    {
+                        <button class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-outline px-3 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container"
+                                @onclick="ExportCsv">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                            CSV
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <MarketContextBar Context="result.MarketContext" />
+
+            @if (result.Candidates.Count > 0)
+            {
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach (var candidate in result.Candidates)
+                    {
+                        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1">
+                            <div class="flex items-start justify-between mb-2">
+                                <div>
+                                    <span class="text-base font-bold text-on-surface">@candidate.Ticker</span>
+                                    <p class="text-xs text-on-surface-variant mt-0.5">@candidate.CompanyName</p>
+                                </div>
+                                <ScoreBadge Score="candidate.FinalScore" />
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-on-surface-variant">
+                                <span class="rounded-[var(--radius-xs)] bg-surface-container px-1.5 py-0.5 font-medium">@candidate.Tier</span>
+                                <span>Raw: @candidate.RawScore.ToString("F3")</span>
+                                <span>@candidate.SignalResults.Count(s => s.IsAvailable) signals</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else if (!BacktestService.IsRunning)
+        {
+            <div class="flex flex-col items-center justify-center py-16 text-center">
+                <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
+                    <svg class="h-8 w-8 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-on-surface">No backtest results</h3>
+                <p class="mt-1 text-sm text-on-surface-variant max-w-sm">
+                    Select a historical date and click <strong>Run Backtest</strong> to simulate what the scan would have produced.
+                </p>
+            </div>
+        }
     }
 </div>
 
@@ -133,9 +145,13 @@
 
 @code {
     private DateTime _asOfDate = DateTime.Today.AddMonths(-1);
+    private bool _isPro;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isPro = authState.User.IsInRole("Pro");
+
         BacktestService.OnBacktestCompleted += OnBacktestCompleted;
     }
 

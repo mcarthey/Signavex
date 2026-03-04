@@ -3,6 +3,7 @@
 @using Signavex.Domain.Interfaces
 @using Signavex.Domain.Models
 @inject IScanHistoryStore HistoryStore
+@inject AuthenticationStateProvider AuthStateProvider
 @rendermode InteractiveServer
 
 <PageTitle>Scan History — Signavex</PageTitle>
@@ -13,227 +14,235 @@
         <p class="text-sm text-on-surface-variant mt-0.5">Browse past scans, search tickers, and track market trends.</p>
     </div>
 
-    @* Market Multiplier Trend *@
-    @if (_trend.Count > 0)
+    @if (!_isPro)
     {
-        <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
-            <h2 class="text-sm font-semibold text-on-surface mb-3">Market Multiplier Trend</h2>
-            <div class="flex items-end gap-1 h-10">
-                @foreach (var point in _trend)
-                {
-                    var pct = Math.Clamp((point.Multiplier - 0.5) / 1.0 * 100, 5, 100);
-                    var color = point.Multiplier >= 1.0
-                        ? "bg-success"
-                        : point.Multiplier >= 0.8
-                            ? "bg-warning"
-                            : "bg-error";
-                    <div class="flex-1 rounded-t-sm @color transition-all"
-                         style="height: @pct.ToString("F0")%"
-                         title="@point.Date.ToString("MMM dd") — @point.Multiplier.ToString("F2")x"></div>
-                }
-            </div>
-            <div class="flex justify-between text-[10px] text-on-surface-variant mt-1">
-                @if (_trend.Count > 0)
-                {
-                    <span>@_trend[0].Date.ToString("MMM dd")</span>
-                    <span>@_trend[^1].Date.ToString("MMM dd")</span>
-                }
-            </div>
-        </div>
+        <UpgradePrompt Title="Unlock Scan History"
+                       Description="View past scan results, search individual tickers, and track market multiplier trends over time." />
     }
-
-    @* Ticker Search *@
-    <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
-        <h2 class="text-sm font-semibold text-on-surface mb-3">Ticker Search</h2>
-        <div class="flex items-center gap-2 mb-3">
-            <input type="text"
-                   @bind="_tickerQuery"
-                   @bind:event="oninput"
-                   @onkeydown="OnTickerKeyDown"
-                   placeholder="Enter ticker (e.g. AAPL)"
-                   class="flex-1 rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/40" />
-            <button @onclick="SearchTicker"
-                    class="rounded-[var(--radius-sm)] bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:brightness-110">
-                Search
-            </button>
-        </div>
-
-        @if (_tickerHistory is not null)
+    else
+    {
+        @* Market Multiplier Trend *@
+        @if (_trend.Count > 0)
         {
-            <div class="mt-3">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="text-base font-bold text-on-surface">@_tickerHistory.Ticker</span>
-                    <span class="text-sm text-on-surface-variant">@_tickerHistory.CompanyName</span>
-                    <span class="text-xs bg-surface-container rounded-[var(--radius-xs)] px-2 py-0.5 font-medium text-on-surface-variant">
-                        @_tickerHistory.Appearances.Count appearance(s)
-                    </span>
+            <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
+                <h2 class="text-sm font-semibold text-on-surface mb-3">Market Multiplier Trend</h2>
+                <div class="flex items-end gap-1 h-10">
+                    @foreach (var point in _trend)
+                    {
+                        var pct = Math.Clamp((point.Multiplier - 0.5) / 1.0 * 100, 5, 100);
+                        var color = point.Multiplier >= 1.0
+                            ? "bg-success"
+                            : point.Multiplier >= 0.8
+                                ? "bg-warning"
+                                : "bg-error";
+                        <div class="flex-1 rounded-t-sm @color transition-all"
+                             style="height: @pct.ToString("F0")%"
+                             title="@point.Date.ToString("MMM dd") — @point.Multiplier.ToString("F2")x"></div>
+                    }
                 </div>
-
-                @if (_tickerHistory.Appearances.Count > 0)
-                {
-                    <div class="flex items-end gap-1 h-16 mb-2">
-                        @{ var maxScore = _tickerHistory.Appearances.Max(a => a.FinalScore); }
-                        @foreach (var app in _tickerHistory.Appearances.Reverse())
-                        {
-                            var pct = maxScore > 0 ? app.FinalScore / maxScore * 100 : 50;
-                            pct = Math.Max(pct, 5);
-                            <div class="flex-1 rounded-t-sm bg-primary/70 transition-all"
-                                 style="height: @pct.ToString("F0")%"
-                                 title="@app.ScanDate.ToString("MMM dd") — Final: @app.FinalScore.ToString("F3"), Raw: @app.RawScore.ToString("F3")"></div>
-                        }
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-outline-variant text-left text-xs text-on-surface-variant">
-                                    <th class="py-2 pr-4 font-medium">Date</th>
-                                    <th class="py-2 pr-4 font-medium">Final Score</th>
-                                    <th class="py-2 pr-4 font-medium">Raw Score</th>
-                                    <th class="py-2 font-medium">Market</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var app in _tickerHistory.Appearances)
-                                {
-                                    <tr class="border-b border-outline-variant/50">
-                                        <td class="py-2 pr-4 text-on-surface">@app.ScanDate.ToString("yyyy-MM-dd")</td>
-                                        <td class="py-2 pr-4 font-medium text-on-surface">@app.FinalScore.ToString("F3")</td>
-                                        <td class="py-2 pr-4 text-on-surface-variant">@app.RawScore.ToString("F3")</td>
-                                        <td class="py-2">
-                                            <span class="@MultiplierColor(app.MarketMultiplier) rounded-[var(--radius-xs)] px-2 py-0.5 text-xs font-medium">
-                                                @app.MarketMultiplier.ToString("F2")x
-                                            </span>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
+                <div class="flex justify-between text-[10px] text-on-surface-variant mt-1">
+                    @if (_trend.Count > 0)
+                    {
+                        <span>@_trend[0].Date.ToString("MMM dd")</span>
+                        <span>@_trend[^1].Date.ToString("MMM dd")</span>
+                    }
+                </div>
             </div>
         }
-        else if (_tickerSearched)
-        {
-            <p class="text-sm text-on-surface-variant mt-2">No history found for "@_tickerQuery".</p>
-        }
-    </div>
 
-    @* Recent Scans Table *@
-    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
-        <h2 class="text-sm font-semibold text-on-surface mb-3">Recent Scans</h2>
+        @* Ticker Search *@
+        <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
+            <h2 class="text-sm font-semibold text-on-surface mb-3">Ticker Search</h2>
+            <div class="flex items-center gap-2 mb-3">
+                <input type="text"
+                       @bind="_tickerQuery"
+                       @bind:event="oninput"
+                       @onkeydown="OnTickerKeyDown"
+                       placeholder="Enter ticker (e.g. AAPL)"
+                       class="flex-1 rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                <button @onclick="SearchTicker"
+                        class="rounded-[var(--radius-sm)] bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:brightness-110">
+                    Search
+                </button>
+            </div>
 
-        @if (_scans.Count == 0)
-        {
-            <p class="text-sm text-on-surface-variant py-4 text-center">No scans recorded yet. Run a scan from the Dashboard to get started.</p>
-        }
-        else
-        {
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="border-b border-outline-variant text-left text-xs text-on-surface-variant">
-                            <th class="py-2 pr-4 font-medium">Date</th>
-                            <th class="py-2 pr-4 font-medium">Market</th>
-                            <th class="py-2 pr-4 font-medium">Candidates</th>
-                            <th class="py-2 pr-4 font-medium">Evaluated</th>
-                            <th class="py-2 font-medium">Errors</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var scan in _scans)
-                        {
-                            var isExpanded = _expandedScanId == scan.ScanId;
-                            <tr class="border-b border-outline-variant/50 cursor-pointer hover:bg-surface-container/50 transition-colors"
-                                @onclick="() => ToggleScan(scan.ScanId)">
-                                <td class="py-2 pr-4 text-on-surface">@scan.CompletedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
-                                <td class="py-2 pr-4">
-                                    <span class="@MultiplierColor(scan.MarketMultiplier) rounded-[var(--radius-xs)] px-2 py-0.5 text-xs font-medium">
-                                        @scan.MarketMultiplier.ToString("F2")x
-                                    </span>
-                                    <span class="text-on-surface-variant ml-1">@scan.MarketSummary</span>
-                                </td>
-                                <td class="py-2 pr-4 font-medium text-on-surface">@scan.CandidateCount</td>
-                                <td class="py-2 pr-4 text-on-surface-variant">@scan.TotalEvaluated</td>
-                                <td class="py-2">
-                                    @if (scan.ErrorCount > 0)
-                                    {
-                                        <span class="text-warning">@scan.ErrorCount</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-on-surface-variant">0</span>
-                                    }
-                                </td>
-                            </tr>
+            @if (_tickerHistory is not null)
+            {
+                <div class="mt-3">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-base font-bold text-on-surface">@_tickerHistory.Ticker</span>
+                        <span class="text-sm text-on-surface-variant">@_tickerHistory.CompanyName</span>
+                        <span class="text-xs bg-surface-container rounded-[var(--radius-xs)] px-2 py-0.5 font-medium text-on-surface-variant">
+                            @_tickerHistory.Appearances.Count appearance(s)
+                        </span>
+                    </div>
 
-                            @if (isExpanded && _expandedResult is not null)
+                    @if (_tickerHistory.Appearances.Count > 0)
+                    {
+                        <div class="flex items-end gap-1 h-16 mb-2">
+                            @{ var maxScore = _tickerHistory.Appearances.Max(a => a.FinalScore); }
+                            @foreach (var app in _tickerHistory.Appearances.Reverse())
                             {
-                                <tr>
-                                    <td colspan="5" class="px-4 py-3 bg-surface-container/30">
-                                        @if (_expandedResult.Candidates.Count == 0)
+                                var pct = maxScore > 0 ? app.FinalScore / maxScore * 100 : 50;
+                                pct = Math.Max(pct, 5);
+                                <div class="flex-1 rounded-t-sm bg-primary/70 transition-all"
+                                     style="height: @pct.ToString("F0")%"
+                                     title="@app.ScanDate.ToString("MMM dd") — Final: @app.FinalScore.ToString("F3"), Raw: @app.RawScore.ToString("F3")"></div>
+                            }
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-outline-variant text-left text-xs text-on-surface-variant">
+                                        <th class="py-2 pr-4 font-medium">Date</th>
+                                        <th class="py-2 pr-4 font-medium">Final Score</th>
+                                        <th class="py-2 pr-4 font-medium">Raw Score</th>
+                                        <th class="py-2 font-medium">Market</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var app in _tickerHistory.Appearances)
+                                    {
+                                        <tr class="border-b border-outline-variant/50">
+                                            <td class="py-2 pr-4 text-on-surface">@app.ScanDate.ToString("yyyy-MM-dd")</td>
+                                            <td class="py-2 pr-4 font-medium text-on-surface">@app.FinalScore.ToString("F3")</td>
+                                            <td class="py-2 pr-4 text-on-surface-variant">@app.RawScore.ToString("F3")</td>
+                                            <td class="py-2">
+                                                <span class="@MultiplierColor(app.MarketMultiplier) rounded-[var(--radius-xs)] px-2 py-0.5 text-xs font-medium">
+                                                    @app.MarketMultiplier.ToString("F2")x
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+            else if (_tickerSearched)
+            {
+                <p class="text-sm text-on-surface-variant mt-2">No history found for "@_tickerQuery".</p>
+            }
+        </div>
+
+        @* Recent Scans Table *@
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
+            <h2 class="text-sm font-semibold text-on-surface mb-3">Recent Scans</h2>
+
+            @if (_scans.Count == 0)
+            {
+                <p class="text-sm text-on-surface-variant py-4 text-center">No scans recorded yet. Run a scan from the Dashboard to get started.</p>
+            }
+            else
+            {
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-outline-variant text-left text-xs text-on-surface-variant">
+                                <th class="py-2 pr-4 font-medium">Date</th>
+                                <th class="py-2 pr-4 font-medium">Market</th>
+                                <th class="py-2 pr-4 font-medium">Candidates</th>
+                                <th class="py-2 pr-4 font-medium">Evaluated</th>
+                                <th class="py-2 font-medium">Errors</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var scan in _scans)
+                            {
+                                var isExpanded = _expandedScanId == scan.ScanId;
+                                <tr class="border-b border-outline-variant/50 cursor-pointer hover:bg-surface-container/50 transition-colors"
+                                    @onclick="() => ToggleScan(scan.ScanId)">
+                                    <td class="py-2 pr-4 text-on-surface">@scan.CompletedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td class="py-2 pr-4">
+                                        <span class="@MultiplierColor(scan.MarketMultiplier) rounded-[var(--radius-xs)] px-2 py-0.5 text-xs font-medium">
+                                            @scan.MarketMultiplier.ToString("F2")x
+                                        </span>
+                                        <span class="text-on-surface-variant ml-1">@scan.MarketSummary</span>
+                                    </td>
+                                    <td class="py-2 pr-4 font-medium text-on-surface">@scan.CandidateCount</td>
+                                    <td class="py-2 pr-4 text-on-surface-variant">@scan.TotalEvaluated</td>
+                                    <td class="py-2">
+                                        @if (scan.ErrorCount > 0)
                                         {
-                                            <p class="text-sm text-on-surface-variant mb-3">No candidates surfaced in this scan.</p>
-
-                                            @if (_expandedResult.MarketContext.MarketSignals.Any())
-                                            {
-                                                <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wide mb-2">Market Conditions</p>
-                                                <div class="flex flex-wrap gap-2 mb-2">
-                                                    @foreach (var signal in _expandedResult.MarketContext.MarketSignals)
-                                                    {
-                                                        <div class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-surface-container px-3 py-1.5 text-xs">
-                                                            <span class="font-medium text-on-surface-variant">@FormatSignalName(signal.SignalName)</span>
-                                                            <span class="font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
-                                                                @signal.Score.ToString("+0.00;-0.00")
-                                                            </span>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            }
-
-                                            @if (!string.IsNullOrEmpty(_expandedResult.MarketContext.Summary))
-                                            {
-                                                <p class="text-xs text-on-surface-variant italic">@_expandedResult.MarketContext.Summary</p>
-                                            }
+                                            <span class="text-warning">@scan.ErrorCount</span>
                                         }
                                         else
                                         {
-                                            @if (_expandedResult.MarketContext.MarketSignals.Any())
+                                            <span class="text-on-surface-variant">0</span>
+                                        }
+                                    </td>
+                                </tr>
+
+                                @if (isExpanded && _expandedResult is not null)
+                                {
+                                    <tr>
+                                        <td colspan="5" class="px-4 py-3 bg-surface-container/30">
+                                            @if (_expandedResult.Candidates.Count == 0)
                                             {
-                                                <div class="flex flex-wrap gap-2 mb-3">
-                                                    @foreach (var signal in _expandedResult.MarketContext.MarketSignals)
+                                                <p class="text-sm text-on-surface-variant mb-3">No candidates surfaced in this scan.</p>
+
+                                                @if (_expandedResult.MarketContext.MarketSignals.Any())
+                                                {
+                                                    <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wide mb-2">Market Conditions</p>
+                                                    <div class="flex flex-wrap gap-2 mb-2">
+                                                        @foreach (var signal in _expandedResult.MarketContext.MarketSignals)
+                                                        {
+                                                            <div class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-surface-container px-3 py-1.5 text-xs">
+                                                                <span class="font-medium text-on-surface-variant">@FormatSignalName(signal.SignalName)</span>
+                                                                <span class="font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
+                                                                    @signal.Score.ToString("+0.00;-0.00")
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+
+                                                @if (!string.IsNullOrEmpty(_expandedResult.MarketContext.Summary))
+                                                {
+                                                    <p class="text-xs text-on-surface-variant italic">@_expandedResult.MarketContext.Summary</p>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                @if (_expandedResult.MarketContext.MarketSignals.Any())
+                                                {
+                                                    <div class="flex flex-wrap gap-2 mb-3">
+                                                        @foreach (var signal in _expandedResult.MarketContext.MarketSignals)
+                                                        {
+                                                            <div class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-surface-container px-3 py-1.5 text-xs">
+                                                                <span class="font-medium text-on-surface-variant">@FormatSignalName(signal.SignalName)</span>
+                                                                <span class="font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
+                                                                    @signal.Score.ToString("+0.00;-0.00")
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                                    @foreach (var c in _expandedResult.Candidates)
                                                     {
-                                                        <div class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-surface-container px-3 py-1.5 text-xs">
-                                                            <span class="font-medium text-on-surface-variant">@FormatSignalName(signal.SignalName)</span>
-                                                            <span class="font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
-                                                                @signal.Score.ToString("+0.00;-0.00")
-                                                            </span>
+                                                        <div class="flex items-center justify-between rounded-[var(--radius-sm)] border border-outline-variant/50 px-3 py-2">
+                                                            <div>
+                                                                <span class="font-bold text-on-surface text-sm">@c.Ticker</span>
+                                                                <span class="text-xs text-on-surface-variant ml-1">@c.CompanyName</span>
+                                                            </div>
+                                                            <span class="text-sm font-medium text-primary">@c.FinalScore.ToString("F3")</span>
                                                         </div>
                                                     }
                                                 </div>
                                             }
-                                            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                                @foreach (var c in _expandedResult.Candidates)
-                                                {
-                                                    <div class="flex items-center justify-between rounded-[var(--radius-sm)] border border-outline-variant/50 px-3 py-2">
-                                                        <div>
-                                                            <span class="font-bold text-on-surface text-sm">@c.Ticker</span>
-                                                            <span class="text-xs text-on-surface-variant ml-1">@c.CompanyName</span>
-                                                        </div>
-                                                        <span class="text-sm font-medium text-primary">@c.FinalScore.ToString("F3")</span>
-                                                    </div>
-                                                }
-                                            </div>
-                                        }
-                                    </td>
-                                </tr>
+                                        </td>
+                                    </tr>
+                                }
                             }
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </div>
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
 </div>
 
 <Disclaimer />
@@ -246,11 +255,18 @@
     private bool _tickerSearched;
     private string? _expandedScanId;
     private CompletedScanResult? _expandedResult;
+    private bool _isPro;
 
     protected override async Task OnInitializedAsync()
     {
-        _scans = await HistoryStore.GetRecentScansAsync();
-        _trend = await HistoryStore.GetMarketMultiplierTrendAsync();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isPro = authState.User.IsInRole("Pro");
+
+        if (_isPro)
+        {
+            _scans = await HistoryStore.GetRecentScansAsync();
+            _trend = await HistoryStore.GetMarketMultiplierTrendAsync();
+        }
     }
 
     private async Task SearchTicker()

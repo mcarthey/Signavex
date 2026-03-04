@@ -5,6 +5,7 @@
 @inject IScanHistoryStore HistoryStore
 @inject IScanStateStore StateStore
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>@Ticker — Signavex</PageTitle>
 
@@ -22,6 +23,14 @@
     {
         <div class="flex items-center justify-center py-16">
             <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+        </div>
+    }
+    else if (!_isPro && !_isInFreeLimit)
+    {
+        <div class="flex flex-col items-center justify-center py-16 text-center">
+            <h3 class="text-base font-semibold text-on-surface mb-4">@Ticker</h3>
+            <UpgradePrompt Title="Unlock Full Candidate Details"
+                           Description="Free accounts can view details for the top 5 candidates. Upgrade to Pro for access to all candidate breakdowns." />
         </div>
     }
     else if (_candidate is null)
@@ -160,6 +169,8 @@
     private StockCandidate? _candidate;
     private TickerHistory? _tickerHistory;
     private bool _loading = true;
+    private bool _isPro;
+    private bool _isInFreeLimit;
     private double _maxHistoryScore = 1.0;
 
     private List<SignalResult> _bullishSignals = new();
@@ -171,16 +182,34 @@
     {
         _loading = true;
 
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isPro = authState.User.IsInRole("Pro");
+
         // Load from persisted latest scan
         try
         {
             var latest = await StateStore.LoadLatestResultAsync();
             _candidate = latest?.Candidates
                 .FirstOrDefault(c => c.Ticker.Equals(Ticker, StringComparison.OrdinalIgnoreCase));
+
+            // Check if this ticker is in the top 5 (free user limit)
+            if (!_isPro && latest?.Candidates is not null)
+            {
+                var top5 = latest.Candidates
+                    .OrderByDescending(c => c.FinalScore)
+                    .Take(5)
+                    .Select(c => c.Ticker);
+                _isInFreeLimit = top5.Contains(Ticker, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                _isInFreeLimit = true;
+            }
         }
         catch
         {
             // Persist layer unavailable — leave _candidate null
+            _isInFreeLimit = true;
         }
 
         // Group signals

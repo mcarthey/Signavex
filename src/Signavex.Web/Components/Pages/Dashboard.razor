@@ -11,6 +11,7 @@
 @inject ApiKeyValidationService ApiKeyService
 @inject IOptions<SignavexOptions> Options
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -249,6 +250,14 @@
         <p class="mt-3 text-xs text-on-surface-variant">
             @FilteredResults.Count() of @DisplayResults.Count() candidates shown
         </p>
+
+        @if (!_isPro && DisplayResults.Count() > 5)
+        {
+            <div class="mt-4">
+                <UpgradePrompt Title="@($"See All {DisplayResults.Count()} Candidates")"
+                               Description="Free accounts see the top 5 candidates. Upgrade to Pro for the complete list." />
+            </div>
+        }
     }
 </div>
 
@@ -266,11 +275,15 @@
     private int _lastScanErrors;
     private int _totalEvaluated;
     private bool _scanRequested;
+    private bool _isPro;
 
     private Timer? _pollTimer;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isPro = authState.User.IsInRole("Pro");
+
         await LoadLatestResults();
         await PollStatus();
 
@@ -362,6 +375,9 @@
                 "raw" => results.OrderByDescending(c => c.RawScore),
                 _ => results.OrderByDescending(c => c.FinalScore)
             };
+
+            if (!_isPro)
+                results = results.Take(5);
 
             return results;
         }

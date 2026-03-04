@@ -7,6 +7,7 @@
 @inject IOptionsMonitor<SignavexOptions> OptionsMonitor
 @inject ApiKeyValidationService ApiKeyService
 @inject IEconomicDataStore EconomicDataStore
+@inject AuthenticationStateProvider AuthStateProvider
 @rendermode InteractiveServer
 
 <PageTitle>Settings — Signavex</PageTitle>
@@ -17,78 +18,68 @@
         <p class="text-sm text-on-surface-variant mt-0.5">Current signal weight configuration</p>
     </div>
 
-    @* API Key Status *@
-    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
-        <h3 class="text-base font-semibold text-on-surface mb-3">API Keys</h3>
-        <div class="space-y-2">
-            @foreach (var (name, configured) in GetKeyStatus())
-            {
-                <div class="flex items-center gap-2">
-                    @if (configured)
-                    {
-                        <div class="h-2 w-2 rounded-full bg-success"></div>
-                        <span class="text-sm text-on-surface">@name</span>
-                        <span class="text-xs text-success">Configured</span>
-                    }
-                    else
-                    {
-                        <div class="h-2 w-2 rounded-full bg-error"></div>
-                        <span class="text-sm text-on-surface">@name</span>
-                        <span class="text-xs text-error">Not configured</span>
-                    }
-                </div>
-            }
-        </div>
-    </div>
-
-    @* Economic Data *@
-    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
-        <h3 class="text-base font-semibold text-on-surface mb-3">Economic Data (FRED)</h3>
-        <div class="space-y-2">
-            <div class="flex items-center justify-between py-1">
-                <span class="text-sm text-on-surface">Tracked Series</span>
-                <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                    @_totalSeries total (@_enabledSeries enabled)
-                </span>
-            </div>
-            <div class="flex items-center justify-between py-1">
-                <span class="text-sm text-on-surface">Sync Schedule</span>
-                <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                    Weekdays 4:30 PM ET (Worker)
-                </span>
-            </div>
-            <div class="flex items-center justify-between py-1">
-                <span class="text-sm text-on-surface">Last Synced Series</span>
-                <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                    @(_lastSyncLabel ?? "Never")
-                </span>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid gap-4 md:grid-cols-2">
-        @* Stock Signals *@
-        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
-            <h3 class="text-base font-semibold text-on-surface mb-3">Stock Signals (Tier 2)</h3>
+    @if (!_isPro)
+    {
+        <UpgradePrompt Title="Unlock Settings"
+                       Description="View API key status, signal weight configuration, and economic data sync information." />
+    }
+    else
+    {
+        @* API Key Status *@
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
+            <h3 class="text-base font-semibold text-on-surface mb-3">API Keys</h3>
             <div class="space-y-2">
-                @foreach (var (name, weight) in GetStockSignals())
+                @foreach (var (name, configured) in GetKeyStatus())
                 {
-                    <div class="flex items-center justify-between py-1">
-                        <span class="text-sm text-on-surface">@name</span>
-                        <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                            @weight.ToString("F1")
-                        </span>
+                    <div class="flex items-center gap-2">
+                        @if (configured)
+                        {
+                            <div class="h-2 w-2 rounded-full bg-success"></div>
+                            <span class="text-sm text-on-surface">@name</span>
+                            <span class="text-xs text-success">Configured</span>
+                        }
+                        else
+                        {
+                            <div class="h-2 w-2 rounded-full bg-error"></div>
+                            <span class="text-sm text-on-surface">@name</span>
+                            <span class="text-xs text-error">Not configured</span>
+                        }
                     </div>
                 }
             </div>
         </div>
 
-        <div class="space-y-4">
-            @* Market Signals *@
+        @* Economic Data *@
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
+            <h3 class="text-base font-semibold text-on-surface mb-3">Economic Data (FRED)</h3>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between py-1">
+                    <span class="text-sm text-on-surface">Tracked Series</span>
+                    <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                        @_totalSeries total (@_enabledSeries enabled)
+                    </span>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                    <span class="text-sm text-on-surface">Sync Schedule</span>
+                    <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                        Weekdays 4:30 PM ET (Worker)
+                    </span>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                    <span class="text-sm text-on-surface">Last Synced Series</span>
+                    <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                        @(_lastSyncLabel ?? "Never")
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+            @* Stock Signals *@
             <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
-                <h3 class="text-base font-semibold text-on-surface mb-3">Market Signals (Tier 1)</h3>
+                <h3 class="text-base font-semibold text-on-surface mb-3">Stock Signals (Tier 2)</h3>
                 <div class="space-y-2">
-                    @foreach (var (name, weight) in GetMarketSignals())
+                    @foreach (var (name, weight) in GetStockSignals())
                     {
                         <div class="flex items-center justify-between py-1">
                             <span class="text-sm text-on-surface">@name</span>
@@ -100,32 +91,50 @@
                 </div>
             </div>
 
-            @* General *@
-            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
-                <h3 class="text-base font-semibold text-on-surface mb-3">General</h3>
-                <div class="space-y-2">
-                    <div class="flex items-center justify-between py-1">
-                        <span class="text-sm text-on-surface">Surfacing Threshold</span>
-                        <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                            @_options.SurfacingThreshold.ToString("F2")
-                        </span>
+            <div class="space-y-4">
+                @* Market Signals *@
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
+                    <h3 class="text-base font-semibold text-on-surface mb-3">Market Signals (Tier 1)</h3>
+                    <div class="space-y-2">
+                        @foreach (var (name, weight) in GetMarketSignals())
+                        {
+                            <div class="flex items-center justify-between py-1">
+                                <span class="text-sm text-on-surface">@name</span>
+                                <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                                    @weight.ToString("F1")
+                                </span>
+                            </div>
+                        }
                     </div>
-                    <div class="flex items-center justify-between py-1">
-                        <span class="text-sm text-on-surface">Universe</span>
-                        <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                            @string.Join(", ", _options.Universe)
-                        </span>
+                </div>
+
+                @* General *@
+                <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
+                    <h3 class="text-base font-semibold text-on-surface mb-3">General</h3>
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between py-1">
+                            <span class="text-sm text-on-surface">Surfacing Threshold</span>
+                            <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                                @_options.SurfacingThreshold.ToString("F2")
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between py-1">
+                            <span class="text-sm text-on-surface">Universe</span>
+                            <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+                                @string.Join(", ", _options.Universe)
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="mt-4 rounded-[var(--radius-md)] border border-primary/20 bg-primary-container/10 p-4">
-        <p class="text-sm text-on-surface-variant">
-            To modify weights or API keys, edit <code class="rounded bg-surface-container px-1 py-0.5 text-xs font-mono text-on-surface">appsettings.json</code> and restart the application.
-        </p>
-    </div>
+        <div class="mt-4 rounded-[var(--radius-md)] border border-primary/20 bg-primary-container/10 p-4">
+            <p class="text-sm text-on-surface-variant">
+                To modify weights or API keys, edit <code class="rounded bg-surface-container px-1 py-0.5 text-xs font-mono text-on-surface">appsettings.json</code> and restart the application.
+            </p>
+        </div>
+    }
 </div>
 
 @code {
@@ -135,26 +144,33 @@
     private int _totalSeries;
     private int _enabledSeries;
     private string? _lastSyncLabel;
+    private bool _isPro;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isPro = authState.User.IsInRole("Pro");
+
         _options = OptionsMonitor.CurrentValue;
         _weights = _options.SignalWeights;
         _marketWeights = _options.MarketSignalWeights;
 
-        var allSeries = await EconomicDataStore.GetAllSeriesAsync();
-        _totalSeries = allSeries.Count;
-        _enabledSeries = allSeries.Count(s => s.IsEnabled);
-
-        // Find most recent sync
-        DateTime? latestSync = null;
-        foreach (var s in allSeries)
+        if (_isPro)
         {
-            var sync = await EconomicDataStore.GetSyncStatusAsync(s.SeriesId);
-            if (sync is not null && (latestSync is null || sync.LastSyncUtc > latestSync))
-                latestSync = sync.LastSyncUtc;
+            var allSeries = await EconomicDataStore.GetAllSeriesAsync();
+            _totalSeries = allSeries.Count;
+            _enabledSeries = allSeries.Count(s => s.IsEnabled);
+
+            // Find most recent sync
+            DateTime? latestSync = null;
+            foreach (var s in allSeries)
+            {
+                var sync = await EconomicDataStore.GetSyncStatusAsync(s.SeriesId);
+                if (sync is not null && (latestSync is null || sync.LastSyncUtc > latestSync))
+                    latestSync = sync.LastSyncUtc;
+            }
+            _lastSyncLabel = latestSync?.ToString("MMM d, yyyy h:mm tt") + " UTC";
         }
-        _lastSyncLabel = latestSync?.ToString("MMM d, yyyy h:mm tt") + " UTC";
     }
 
     private IEnumerable<(string Name, double Weight)> GetStockSignals() => new[]
