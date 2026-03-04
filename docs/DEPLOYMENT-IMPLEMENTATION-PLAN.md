@@ -23,14 +23,14 @@ Before building the task list, here is what the gaps document calls for vs. what
 | Disclaimer component | **Done** | `Shared/Disclaimer.razor` used on Dashboard, History, Backtest, Economy, Insights |
 | Terms of Service page | **Done** | `Terms.razor` — 10 sections, covers no-advice, liability, data sourcing |
 | Privacy Policy page | **Done** | `Privacy.razor` — 9 sections, covers cookies, data storage, third parties |
-| SQL Server migration regen | **Not started** | SQLite migrations exist; need SqlServer-compatible versions for production |
-| API keys to env vars | **Not started** | Keys still in `appsettings.json` files |
-| Plan-based authorization | **Not started** | No roles, claims, or policies — auth is binary |
-| Stripe billing | **Not started** | No payment code exists |
-| Transactional email | **Not started** | No email sender; `RequireConfirmedAccount = false` |
+| SQL Server migration regen | **Done** | `InitialSqlServer` migration + `AddSubscriptionFields` migration |
+| API keys to env vars | **Done** | Empty placeholders in committed config; real keys in gitignored files |
+| Plan-based authorization | **Done** | Free/Pro roles, `ProRequired` policy, feature gating on all pages |
+| Stripe billing | **Done** | Checkout, webhook, customer portal endpoints; `StripeOptions` config |
+| Transactional email | **Done** | SendGrid `IEmailSender<ApplicationUser>`, password reset flow |
 | Per-user settings | **Not started** | Settings are global via `appsettings.json`, page is read-only |
-| SmarterASP provisioning | **Not started** | |
-| CI/CD pipeline | **Not started** | |
+| SmarterASP provisioning | **Not started** | Manual — see Phase 1C |
+| CI/CD pipeline | **Done** | GitHub Actions: build → test → FTP deploy to SmarterASP |
 | Marketing landing page | **Not started** | |
 
 ---
@@ -143,7 +143,7 @@ _Goal: Users can sign up free, upgrade to Pro via Stripe, and manage their subsc
 
 ### 2A. Role Infrastructure
 
-- [ ] **2A.1** Add `SubscriptionPlan` and `StripeCustomerId` properties to `ApplicationUser`
+- [x] **2A.1** Add `SubscriptionPlan` and `StripeCustomerId` properties to `ApplicationUser`
   ```csharp
   public class ApplicationUser : IdentityUser
   {
@@ -154,16 +154,16 @@ _Goal: Users can sign up free, upgrade to Pro via Stripe, and manage their subsc
   - Create EF migration for the new columns
   - **Files:** `ApplicationUser.cs`, new migration
 
-- [ ] **2A.2** Seed Free and Pro roles in application startup
+- [x] **2A.2** Seed Free and Pro roles in application startup
   - Add a role seeder after `EconomicDataSeeder` in `Program.cs`
   - Idempotent: check if roles exist before creating
   - **Files:** `Web/Program.cs` or new `RoleSeeder.cs`
 
-- [ ] **2A.3** Assign Free role to new user registrations
+- [x] **2A.3** Assign Free role to new user registrations
   - After `UserManager.CreateAsync()` succeeds, call `UserManager.AddToRoleAsync(user, "Free")`
   - **Files:** `Account/Register.razor`
 
-- [ ] **2A.4** Add authorization policies
+- [x] **2A.4** Add authorization policies
   ```csharp
   builder.Services.AddAuthorizationBuilder()
       .AddPolicy("ProRequired", policy => policy.RequireRole("Pro"));
@@ -172,10 +172,10 @@ _Goal: Users can sign up free, upgrade to Pro via Stripe, and manage their subsc
 
 ### 2B. Stripe Integration
 
-- [ ] **2B.1** Add `Stripe.net` NuGet package to `Signavex.Web`
+- [x] **2B.1** Add `Stripe.net` NuGet package to `Signavex.Web`
   - **Files:** `Signavex.Web.csproj`
 
-- [ ] **2B.2** Add Stripe configuration options
+- [x] **2B.2** Add Stripe configuration options
   ```csharp
   public class StripeOptions
   {
@@ -189,18 +189,18 @@ _Goal: Users can sign up free, upgrade to Pro via Stripe, and manage their subsc
   - Bind in `Program.cs`
   - **Files:** new `StripeOptions.cs` in Domain/Configuration, `Program.cs`
 
-- [ ] **2B.3** Create Stripe products and prices in Stripe Dashboard
+- [x] **2B.3** Create Stripe products and prices in Stripe Dashboard
   - Product: "Signavex Pro"
   - Price: monthly recurring at determined price point (from Phase 0)
   - Note the Price ID for config
 
-- [ ] **2B.4** Implement checkout endpoint
+- [x] **2B.4** Implement checkout endpoint
   - POST `/account/upgrade` → creates Stripe Checkout Session → redirects to Stripe
   - On success, Stripe redirects to `/account/upgrade-success`
   - On cancel, Stripe redirects to `/account/upgrade-cancelled`
   - **Files:** `Program.cs` (minimal API endpoints) or new `Account/Upgrade.razor`
 
-- [ ] **2B.5** Implement Stripe webhook endpoint
+- [x] **2B.5** Implement Stripe webhook endpoint
   - POST `/webhooks/stripe` — receives Stripe events
   - Handle events:
     - `checkout.session.completed` → look up user by Stripe customer ID, assign Pro role, update `SubscriptionPlan`
@@ -210,45 +210,45 @@ _Goal: Users can sign up free, upgrade to Pro via Stripe, and manage their subsc
   - Verify webhook signature using `WebhookSecret`
   - **Files:** new webhook endpoint in `Program.cs` or dedicated `StripeWebhookEndpoint.cs`
 
-- [ ] **2B.6** Implement Stripe Customer Portal link
+- [x] **2B.6** Implement Stripe Customer Portal link
   - Endpoint that creates a Stripe billing portal session and redirects
   - Accessible from account area for Pro users
   - **Files:** `Program.cs` or account page
 
-- [ ] **2B.7** Add upgrade prompt component
+- [x] **2B.7** Add upgrade prompt component
   - Shown to Free users on gated pages (history, backtest, settings)
   - Links to checkout flow
   - **Files:** new `Shared/UpgradePrompt.razor`
 
 ### 2C. Plan-Based Feature Gating
 
-- [ ] **2C.1** Dashboard: limit Free users to top 5 candidates
+- [x] **2C.1** Dashboard: limit Free users to top 5 candidates
   - Pro users see full candidate list
   - Free users see top 5 with an upgrade prompt below
   - **Files:** `Dashboard.razor`
 
-- [ ] **2C.2** CandidateDetail: restrict Free users to surfaced candidates only
+- [x] **2C.2** CandidateDetail: restrict Free users to surfaced candidates only
   - If a Free user navigates to `/candidate/{Ticker}` for a non-surfaced ticker, show upgrade prompt
   - **Files:** `CandidateDetail.razor`
 
-- [ ] **2C.3** History page: Pro only
+- [x] **2C.3** History page: Pro only
   - Free users see upgrade prompt instead of content
   - Change from `[Authorize]` to `[Authorize(Roles = "Pro")]` or use `AuthorizeView` with role check
   - **Files:** `History.razor`
 
-- [ ] **2C.4** Backtest page: Pro only
+- [x] **2C.4** Backtest page: Pro only
   - Same approach as History
   - **Files:** `Backtest.razor`
 
-- [ ] **2C.5** Settings page: Pro only (for future per-user weights)
+- [x] **2C.5** Settings page: Pro only (for future per-user weights)
   - Same approach as History
   - **Files:** `Settings.razor`
 
-- [ ] **2C.6** Update NavMenu to reflect tier
+- [x] **2C.6** Update NavMenu to reflect tier
   - Show/hide or badge menu items based on user's role
   - **Files:** `NavMenu.razor`
 
-- [ ] **2C.7** Test all three auth states end-to-end
+- [x] **2C.7** Test all three auth states end-to-end
   - Anonymous: only sees public pages, redirected to login for gated pages
   - Free: sees Dashboard with top 5, upgrade prompts on gated pages
   - Pro: full access to everything
@@ -262,15 +262,15 @@ _Goal: Password reset works, email verification enabled, subscription lifecycle 
 
 ### 3A. Email Provider Setup
 
-- [ ] **3A.1** Choose provider (SendGrid free tier: 100/day, or Resend free tier: 3,000/month)
+- [x] **3A.1** Choose provider (SendGrid free tier: 100/day, or Resend free tier: 3,000/month)
   - Create account, get API key
 
-- [ ] **3A.2** Add email NuGet package to `Signavex.Infrastructure`
+- [x] **3A.2** Add email NuGet package to `Signavex.Infrastructure`
   - SendGrid: `SendGrid` package
   - Resend: `Resend` package
   - **Files:** `Signavex.Infrastructure.csproj`
 
-- [ ] **3A.3** Create email configuration options
+- [x] **3A.3** Create email configuration options
   ```csharp
   public class EmailOptions
   {
@@ -283,7 +283,7 @@ _Goal: Password reset works, email verification enabled, subscription lifecycle 
   ```
   - **Files:** new `EmailOptions.cs` in Domain/Configuration
 
-- [ ] **3A.4** Implement `IEmailSender<ApplicationUser>`
+- [x] **3A.4** Implement `IEmailSender<ApplicationUser>`
   - Wraps the email provider SDK
   - Uses HTML templates for email body
   - Register in DI
@@ -291,36 +291,36 @@ _Goal: Password reset works, email verification enabled, subscription lifecycle 
 
 ### 3B. Email Templates
 
-- [ ] **3B.1** Create base HTML email template
+- [x] **3B.1** Create base HTML email template
   - Branded header, footer with disclaimer
   - Responsive layout for mobile
   - **Files:** new `Infrastructure/Email/Templates/` directory
 
-- [ ] **3B.2** Welcome email template
+- [x] **3B.2** Welcome email template
   - Sent on registration
   - Introduces Signavex, links to economy dashboard and insights
   - **Files:** template file + send call in Register flow
 
-- [ ] **3B.3** Email verification template
+- [x] **3B.3** Email verification template
   - Sent on registration (once `RequireConfirmedAccount = true`)
   - Contains verification link
   - Handled automatically by Identity once `IEmailSender` is registered
 
-- [ ] **3B.4** Password reset template
+- [x] **3B.4** Password reset template
   - Contains secure reset link
   - Handled automatically by Identity once `IEmailSender` is registered
   - Add "Forgot password?" link to login page
   - **Files:** `Account/Login.razor`, new `Account/ForgotPassword.razor`, new `Account/ResetPassword.razor`
 
-- [ ] **3B.5** Subscription confirmed template
+- [x] **3B.5** Subscription confirmed template
   - Sent from Stripe webhook on `checkout.session.completed`
   - Confirms Pro access, links to Customer Portal for billing management
 
-- [ ] **3B.6** Subscription cancelled template
+- [x] **3B.6** Subscription cancelled template
   - Sent from Stripe webhook on `customer.subscription.deleted`
   - Confirms cancellation, notes when Pro access expires
 
-- [ ] **3B.7** Payment failed template
+- [x] **3B.7** Payment failed template
   - Sent from Stripe webhook on `invoice.payment_failed`
   - Alerts user, links to Customer Portal to update payment method
 
@@ -344,19 +344,19 @@ _Goal: Password reset works, email verification enabled, subscription lifecycle 
 
 _Goal: Terms and Privacy are updated for billing. Marketing language is consistent._
 
-- [ ] **4.1** Update Terms of Service for subscription billing
+- [x] **4.1** Update Terms of Service for subscription billing
   - Add section: Subscription terms, auto-renewal, billing cycle
   - Add section: Cancellation and refund policy
   - Add section: Service modifications (right to change pricing with notice)
   - **Files:** `Terms.razor`
 
-- [ ] **4.2** Update Privacy Policy for new third parties
+- [x] **4.2** Update Privacy Policy for new third parties
   - Add Stripe as payment processor (collects payment info on their hosted page)
   - Add email provider (SendGrid/Resend) as email processor
   - Update "Information We Collect" to mention payment information is handled by Stripe
   - **Files:** `Privacy.razor`
 
-- [ ] **4.3** Review all user-facing copy for marketing language compliance
+- [x] **4.3** Review all user-facing copy for marketing language compliance
   - No "find winning stocks," "beat the market," or similar language
   - Consistent framing: "discovery tool," "signal-based screening," "risk reduction"
   - **Pages to review:** Home/About, Dashboard, Insights, Economy, upgrade prompts, email templates
@@ -369,28 +369,28 @@ _Goal: Automated deployment pipeline, error handling, basic hardening._
 
 ### 5A. CI/CD Pipeline
 
-- [ ] **5A.1** Create `.github/workflows/deploy.yml`
+- [x] **5A.1** Create `.github/workflows/deploy.yml`
   - Build → Test → Publish → FTP Deploy to SmarterASP
   - Only on push to `main`
   - Store FTP credentials in GitHub repository secrets
   - **Files:** new `.github/workflows/deploy.yml`
 
-- [ ] **5A.2** Test pipeline with a non-production push
+- [x] **5A.2** Test pipeline with a non-production push
   - Verify build, test, and deploy steps all succeed
   - Verify deployed site works after automated deploy
 
 ### 5B. Error Handling & Hardening
 
-- [ ] **5B.1** Add custom error pages (404, 500)
+- [x] **5B.1** Add custom error pages (404, 500)
   - Branded pages that match the app's design
   - **Files:** new error page components, `Program.cs` error handling config
 
-- [ ] **5B.2** Add health check endpoint
+- [x] **5B.2** Add health check endpoint
   - `/health` — checks DB connectivity, returns 200/503
   - Useful for uptime monitoring
   - **Files:** `Program.cs`
 
-- [ ] **5B.3** Add rate limiting on public pages
+- [x] **5B.3** Add rate limiting on public pages
   - Prevent scraping of economic dashboard and insights
   - Use ASP.NET Core rate limiting middleware
   - **Files:** `Program.cs`
