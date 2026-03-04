@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Signavex.Domain.Configuration;
 using Signavex.Engine;
 using Signavex.Infrastructure;
+using Signavex.Infrastructure.Email;
 using Signavex.Infrastructure.Persistence;
 using Signavex.Signals;
 using Stripe;
@@ -25,6 +26,9 @@ builder.Services.Configure<AnthropicOptions>(
 
 builder.Services.Configure<StripeOptions>(
     builder.Configuration.GetSection(StripeOptions.SectionName));
+
+builder.Services.Configure<EmailOptions>(
+    builder.Configuration.GetSection(EmailOptions.SectionName));
 
 var providerOptions = builder.Configuration
     .GetSection(DataProviderOptions.SectionName)
@@ -54,6 +58,8 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<SignavexDbContext>()
 .AddDefaultTokenProviders();
+
+builder.Services.AddSingleton<IEmailSender<ApplicationUser>, SendGridEmailSender>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
