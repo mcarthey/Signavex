@@ -150,6 +150,7 @@ public class WorkerScanOrchestrator
             var universeProvider = scope.ServiceProvider.GetRequiredService<UniverseProvider>();
             universeTickers = (await universeProvider.GetUniverseAsync())
                 .Select(u => u.Ticker).ToList().AsReadOnly();
+            lastKnownTotal = universeTickers.Count;
 
             var result = await engine.RunScanAsync(progress, resumeState, onStockEvaluated, ctx =>
             {
