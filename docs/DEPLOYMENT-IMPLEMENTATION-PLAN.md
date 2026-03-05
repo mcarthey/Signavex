@@ -438,3 +438,12 @@ _Not blocked by launch. Build based on user feedback and demand._
 | 5A | New `.github/workflows/deploy.yml` |
 | 5B | `Program.cs`, new error pages |
 | 5C | Separate static site |
+
+##   Remaining manual steps (no code changes needed):
+
+  1. Phase 1C — Hosting: Provision SmarterASP.NET account, configure MSSQL database, set environment variables, first deploy, DNS/SSL setup
+  2. Phase 2B — Stripe: Create Stripe account, create "Signavex Pro" product/price, configure webhook endpoint in Stripe Dashboard, set Stripe__* env vars
+  3. Phase 3 — SendGrid: Create SendGrid account, verify sender identity, set Email__ApiKey env var, smoke-test email delivery
+  4. Phase 3C — Email verification: After email is confirmed working, flip RequireConfirmedAccount to true
+  5. Phase 5A — CI secrets: Add GitHub secrets: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, FTP_REMOTE_DIR
+  6. Phase 5C — Marketing landing page: Post-launch backlog item (static HTML, separate from Blazor app)

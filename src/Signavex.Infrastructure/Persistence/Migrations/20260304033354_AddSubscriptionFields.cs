@@ -13,13 +13,11 @@ namespace Signavex.Infrastructure.Persistence.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "StripeCustomerId",
                 table: "AspNetUsers",
-                type: "nvarchar(max)",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "SubscriptionPlan",
                 table: "AspNetUsers",
-                type: "nvarchar(max)",
                 nullable: false,
                 defaultValue: "");
         }

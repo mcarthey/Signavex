@@ -125,19 +125,23 @@ var stripeOptions = builder.Configuration
     .Get<StripeOptions>() ?? new StripeOptions();
 StripeConfiguration.ApiKey = stripeOptions.SecretKey;
 
-// Initialize database and seed economic data
+// Initialize database
 using (var scope = app.Services.CreateScope())
 {
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
-    using var db = await factory.CreateDbContextAsync();
+    var dbLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseInit");
 
-    if (string.Equals(signavexOptions.DatabaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+    // SQLite: one-time transition from EnsureCreated to MigrateAsync (preserves data)
+    if (!string.Equals(signavexOptions.DatabaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
     {
-        await db.Database.MigrateAsync();
+        await SqliteMigrationTransition.TransitionIfNeededAsync(dataDirectory, factory, dbLogger);
     }
-    else
+
+    await using var db = await factory.CreateDbContextAsync();
+    await db.Database.MigrateAsync();
+
+    if (!string.Equals(signavexOptions.DatabaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
     {
-        await db.Database.EnsureCreatedAsync();
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
         await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
     }

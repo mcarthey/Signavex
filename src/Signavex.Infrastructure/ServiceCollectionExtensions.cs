@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Signavex.Domain.Configuration;
@@ -39,7 +40,8 @@ public static class ServiceCollectionExtensions
             var dbPath = Path.Combine(dataDirectory, "signavex.db");
             Directory.CreateDirectory(dataDirectory);
             services.AddDbContextFactory<SignavexDbContext>(options =>
-                options.UseSqlite($"Data Source={dbPath}"));
+                options.UseSqlite($"Data Source={dbPath}")
+                    .ReplaceService<IMigrationsSqlGenerator, SqlServerTypeSqliteGenerator>());
         }
 
         services.AddSingleton<IScanStateStore, SqliteScanStateStore>();
