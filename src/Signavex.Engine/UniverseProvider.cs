@@ -40,6 +40,10 @@ public class UniverseProvider
             result.AddRange(constituents.Select(t => (t, tier)));
         }
 
-        return result;
+        // Deduplicate: if a ticker appears in multiple indices, keep the highest tier (lowest enum value)
+        return result
+            .GroupBy(x => x.Ticker, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderBy(x => x.Tier).First())
+            .ToList();
     }
 }
