@@ -98,20 +98,22 @@ public static class SqliteMigrationTransition
         cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory'";
         if (await cmd.ExecuteScalarAsync() is not null)
         {
-            // Verify it has the expected migrations AND the tables actually exist
-            cmd.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\"";
-            var migrationCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            // Verify the current migrations are applied (not just any old migration names)
+            cmd.CommandText =
+                "SELECT COUNT(*) FROM \"__EFMigrationsHistory\" " +
+                "WHERE MigrationId LIKE '%_InitialSqlServer' OR MigrationId LIKE '%_AddSubscriptionFields'";
+            var currentMigrationCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
             cmd.CommandText =
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN " +
                 "('ScanRuns','AspNetUsers','AspNetRoles')";
             var keyTableCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
-            // Fully migrated: has migration records and all key tables exist
-            if (migrationCount >= 2 && keyTableCount >= 3)
+            // Fully migrated: has the CURRENT migration names and all key tables exist
+            if (currentMigrationCount >= 2 && keyTableCount >= 3)
                 return DbState.AlreadyMigrated;
 
-            // Broken state: has history but missing tables
+            // Stale or broken state: has old migration names or missing tables
             return DbState.NeedsTransition;
         }
 
