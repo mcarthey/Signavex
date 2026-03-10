@@ -405,6 +405,158 @@ _Goal: Automated deployment pipeline, error handling, basic hardening._
 
 ---
 
+## Phase 6 — Signal Data Gaps & Scoring
+
+_Goal: Fix the root cause of 0 candidates surfacing. Stocks should consistently surface when conditions warrant._
+
+**Root cause analysis:** `ScoreCalculator.CalculateWeightedScore` correctly excludes unavailable signals from the denominator. However, `AlphaVantageFundamentalsProvider` hardcodes `IndustryPeRatio` and `DebtToEquityRatio` as `null` (fields genuinely not returned by the OVERVIEW endpoint). This means P/E and D/E signals are always unavailable, leaving only 4-5 of 10 signals active. Combined with the 0.65 threshold and a market multiplier below 1.0, almost nothing passes.
+
+### 6A. Fix AlphaVantage Fundamentals
+
+- [ ] **6A.1** Extract `DebtToEquityRatio` from Alpha Vantage BALANCE_SHEET endpoint
+  - Compute from `totalCurrentLiabilities + totalNonCurrentLiabilities` / `totalShareholderEquity`
+  - Cache aggressively — balance sheets don't change daily
+  - **Files:** `AlphaVantageFundamentalsProvider.cs`, potentially new DTO for balance sheet response
+
+- [ ] **6A.2** Implement sector-average P/E estimation for `IndustryPeRatio`
+  - Alpha Vantage OVERVIEW returns `Sector`. Build a cached lookup of sector-average P/E from the universe's own P/E values
+  - Fallback: use broad market P/E (~20-22) if sector data insufficient
+  - **Files:** `AlphaVantageFundamentalsProvider.cs`, `FundamentalsData` model if needed
+
+- [ ] **6A.3** Respect Alpha Vantage rate limits (free tier: 25 calls/day, 5/min)
+  - Cache fundamentals data per ticker (balance sheets change quarterly, not daily)
+  - Add a `FundamentalsCache` table or use the existing economic data pattern
+  - Only re-fetch fundamentals older than 7 days
+  - **Files:** new cache entity, migration, provider update
+
+### 6B. Lower Default Threshold
+
+- [ ] **6B.1** Lower `SurfacingThreshold` from 0.65 to 0.45 in `appsettings.json`
+  - With market multiplier of 0.87x, a stock needs raw score > 0.75 to pass 0.65 — practically unreachable
+  - At 0.45, a raw score > 0.52 suffices — achievable with moderate bullish signals
+  - **Files:** `Web/appsettings.json`, `Worker/appsettings.json`
+
+### 6C. Store All Evaluated Stocks
+
+_Prerequisite for Phase 7 (dynamic threshold slider). Without this, the slider has no data to filter._
+
+- [ ] **6C.1** Modify `StockEvaluator.EvaluateAsync` to always return a `StockCandidate`
+  - Remove the threshold check from the evaluator — move it to the caller
+  - All stocks with valid data get a score; filtering happens at display time
+  - **Files:** `StockEvaluator.cs`
+
+- [ ] **6C.2** Modify `ScanEngine.RunScanAsync` to collect all evaluated stocks
+  - Currently only adds non-null candidates to the results list
+  - Change to add all evaluated stocks regardless of score
+  - **Files:** `ScanEngine.cs`
+
+- [ ] **6C.3** Update `SaveCompletedResultAsync` to store all evaluated stocks
+  - `ScanCandidateEntity` stores all stocks with their scores and signal results
+  - Dashboard and API filter by threshold at query/display time
+  - Consider storage: ~900 rows × ~2KB JSON per scan = ~1.8MB/scan, ~54MB/month — manageable
+  - **Files:** `SqliteScanStateStore.cs`, potentially new migration if schema changes needed
+
+---
+
+## Phase 7 — Dynamic Threshold Slider
+
+_Goal: Users can adjust the surfacing threshold in real-time. Stocks pop in/out as the slider moves. Each stock shows why it was included._
+
+_Depends on: Phase 6C (all evaluated stocks stored in DB)_
+
+### 7A. Dashboard Slider UI
+
+- [ ] **7A.1** Add threshold range slider to `Dashboard.razor`
+  - HTML `<input type="range">` bound to a local `_thresholdOverride` field
+  - Range: 0.20 to 0.90, step 0.05. Default: loaded from `Options.Value.SurfacingThreshold`
+  - Blazor Server re-renders on state change — moving the slider immediately updates displayed candidates
+  - **Files:** `Dashboard.razor`
+
+- [ ] **7A.2** Update `ScanDashboardService` to return all evaluated stocks
+  - Currently returns only above-threshold candidates
+  - Change to return all stocks; let the dashboard filter by slider value
+  - **Files:** `ScanDashboardService.cs`, `SqliteScanStateStore.cs`
+
+- [ ] **7A.3** Client-side filtering of displayed candidates
+  - `DisplayResults` filters by `c.FinalScore >= _thresholdOverride`
+  - Show count of surfaced stocks vs total evaluated
+  - **Files:** `Dashboard.razor`
+
+### 7B. Signal Breakdown on Candidate Cards
+
+- [ ] **7B.1** Add compact signal summary to each surfaced stock card
+  - Colored indicators (green/yellow/red/gray) for each signal
+  - Show signal name, score, and availability at a glance
+  - Follow existing card pattern in Dashboard.razor
+  - **Files:** `Dashboard.razor` or new `Shared/SignalBreakdown.razor` component
+
+- [ ] **7B.2** Add expandable detail section per card
+  - Click/expand to see full signal reasons (why this stock was included)
+  - Each signal shows its `Reason` text from `SignalResult`
+  - Highlight which signals contributed most to the score
+  - **Files:** `Dashboard.razor`
+
+---
+
+## Phase 8 — Admin View & Notifications
+
+_Goal: Admin-only pages for system monitoring. Push notifications via Ntfy on scan events._
+
+### 8A. Admin Pages
+
+- [ ] **8A.1** Seed "Admin" role alongside Free/Pro in `RoleSeeder`
+  - Idempotent: check if role exists before creating
+  - **Files:** `RoleSeeder.cs`
+
+- [ ] **8A.2** Create `Admin/AdminDashboard.razor`
+  - System status overview: last scan time, error counts, DB size, background service status
+  - Quick view of pending/completed scan commands
+  - `@attribute [Authorize(Roles = "Admin")]`
+  - **Files:** new `Components/Pages/Admin/AdminDashboard.razor`
+
+- [ ] **8A.3** Create `Admin/AdminLogs.razor`
+  - View recent application logs
+  - Options: (a) add a DB log sink (new `LogEntry` entity + Serilog DB sink), or (b) read from a log file
+  - Filter by level (Error/Warning/Info), date range, source
+  - **Files:** new `Components/Pages/Admin/AdminLogs.razor`, potentially new `LogEntry` entity + migration
+
+- [ ] **8A.4** Create `Admin/AdminScanHistory.razor`
+  - Enhanced scan history: show which tickers failed, error messages, signal availability breakdown
+  - Per-scan detail view with full candidate list and scores
+  - **Files:** new `Components/Pages/Admin/AdminScanHistory.razor`
+
+- [ ] **8A.5** Add admin nav links (conditionally shown for Admin role)
+  - Only visible to users in the Admin role
+  - **Files:** `NavMenu.razor`
+
+### 8B. Ntfy Push Notifications
+
+- [ ] **8B.1** Create `INtfyNotifier` interface and `NtfyNotifier` implementation
+  - Simple HTTP POST to `https://ntfy.sh/<topic>`
+  - Configure topic and enabled flag via `NtfyOptions`
+  - **Files:** new `Domain/Interfaces/INtfyNotifier.cs`, new `Infrastructure/Notifications/NtfyNotifier.cs`
+
+- [ ] **8B.2** Add `NtfyOptions` to configuration
+  ```json
+  "Ntfy": {
+    "Enabled": true,
+    "Topic": "signavex-alerts",
+    "BaseUrl": "https://ntfy.sh"
+  }
+  ```
+  - **Files:** new `Domain/Configuration/NtfyOptions.cs`, `appsettings.json`
+
+- [ ] **8B.3** Hook notifications into scan lifecycle
+  - Send on: scan complete (with candidate count and duration), scan failure (with error summary), daily brief generated
+  - Integration point: `WorkerScanOrchestrator.RunScanAsync` — after `SaveCompletedResultAsync` and in catch/finally blocks
+  - **Files:** `WorkerScanOrchestrator.cs`, `DailyBriefBackgroundService.cs`
+
+- [ ] **8B.4** Register `NtfyNotifier` in DI
+  - Add `HttpClient` registration for Ntfy
+  - **Files:** `ServiceCollectionExtensions.cs`, `Program.cs`
+
+---
+
 ## Post-Launch Backlog
 
 _Not blocked by launch. Build based on user feedback and demand._
@@ -438,8 +590,27 @@ _Not blocked by launch. Build based on user feedback and demand._
 | 5A | New `.github/workflows/deploy.yml` |
 | 5B | `Program.cs`, new error pages |
 | 5C | Separate static site |
+| 6A | `AlphaVantageFundamentalsProvider.cs`, new cache entity/migration |
+| 6B | `Web/appsettings.json`, `Worker/appsettings.json` |
+| 6C | `StockEvaluator.cs`, `ScanEngine.cs`, `SqliteScanStateStore.cs` |
+| 7A | `Dashboard.razor`, `ScanDashboardService.cs`, `SqliteScanStateStore.cs` |
+| 7B | `Dashboard.razor`, new `Shared/SignalBreakdown.razor` |
+| 8A | New `Admin/` pages, `RoleSeeder.cs`, `NavMenu.razor` |
+| 8B | New `INtfyNotifier`, `NtfyNotifier`, `NtfyOptions`, `WorkerScanOrchestrator.cs` |
 
-##   Remaining manual steps (no code changes needed):
+## Dependency Graph
+
+```
+Phase 1C (hosting) ──> Production is live (SQL Server, background services in-process)
+
+Phase 6A (fix data gaps) ──┐
+Phase 6B (lower threshold) ┼──> Phase 6C (store all stocks) ──> Phase 7 (slider + signal cards)
+                           └──> Immediate improvement even without slider
+
+Phase 8 (admin + ntfy) ──> Independent, can start any time after Phase 1
+```
+
+## Remaining manual steps (no code changes needed):
 
   1. Phase 1C — Hosting: Provision SmarterASP.NET account, configure MSSQL database, set environment variables, first deploy, DNS/SSL setup
   2. Phase 2B — Stripe: Create Stripe account, create "Signavex Pro" product/price, configure webhook endpoint in Stripe Dashboard, set Stripe__* env vars
@@ -447,3 +618,4 @@ _Not blocked by launch. Build based on user feedback and demand._
   4. Phase 3C — Email verification: After email is confirmed working, flip RequireConfirmedAccount to true
   5. Phase 5A — CI secrets: Add GitHub secrets: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, FTP_REMOTE_DIR
   6. Phase 5C — Marketing landing page: Post-launch backlog item (static HTML, separate from Blazor app)
+  7. Phase 8B — Ntfy: Choose a topic name, optionally set up ntfy.sh authentication for private topics
