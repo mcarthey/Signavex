@@ -64,6 +64,50 @@ public class PolygonMarketDataProvider : IMarketDataProvider
         }
     }
 
+    public async Task<TickerProfile?> GetTickerProfileAsync(string ticker)
+    {
+        try
+        {
+            var url = $"/v3/reference/tickers/{ticker}?apiKey={_options.Polygon.ApiKey}";
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync();
+            var data = JsonSerializer.Deserialize<PolygonTickerDetailsResponse>(json);
+
+            if (data?.Results is null)
+                return null;
+
+            var r = data.Results;
+
+            // Parse sector from SIC description (e.g., "Services-General Medical & Surgical Hospitals, NEC")
+            var sector = r.SicDescription;
+            string? industry = null;
+            if (sector is not null && sector.Contains('-'))
+            {
+                var parts = sector.Split('-', 2);
+                sector = parts[0].Trim();
+                industry = parts[1].Trim();
+            }
+
+            return new TickerProfile(
+                Ticker: r.Ticker ?? ticker,
+                Name: r.Name ?? ticker,
+                Description: r.Description,
+                Sector: sector,
+                Industry: industry,
+                HomePageUrl: r.HomepageUrl,
+                MarketCap: r.MarketCap.HasValue ? (long)r.MarketCap.Value : null,
+                Employees: r.TotalEmployees
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch ticker details for {Ticker}", ticker);
+            return null;
+        }
+    }
+
     public Task<IEnumerable<string>> GetIndexConstituentsAsync(MarketIndex index)
     {
         try

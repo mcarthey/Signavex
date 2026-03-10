@@ -11,4 +11,5 @@ public interface IMarketDataProvider
 {
     Task<IEnumerable<OhlcvRecord>> GetDailyOhlcvAsync(string ticker, int days);
     Task<IEnumerable<string>> GetIndexConstituentsAsync(MarketIndex index);
+    Task<TickerProfile?> GetTickerProfileAsync(string ticker);
 }

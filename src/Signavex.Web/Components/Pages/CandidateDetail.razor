@@ -59,11 +59,25 @@
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                     <h1 class="text-2xl font-bold text-on-surface">@_candidate.Ticker</h1>
-                    <p class="text-sm text-on-surface-variant mt-0.5">@_candidate.CompanyName</p>
-                    <div class="flex items-center gap-2 mt-2">
+                    <p class="text-sm text-on-surface-variant mt-0.5">
+                        @(_profile?.Name ?? _candidate.CompanyName)
+                    </p>
+                    <div class="flex items-center gap-2 mt-2 flex-wrap">
                         <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
                             @_candidate.Tier
                         </span>
+                        @if (_profile?.Sector is not null)
+                        {
+                            <span class="rounded-[var(--radius-xs)] bg-tertiary-container px-2 py-0.5 text-xs font-medium text-on-primary-container">
+                                @_profile.Sector
+                            </span>
+                        }
+                        @if (_profile?.Industry is not null)
+                        {
+                            <span class="rounded-[var(--radius-xs)] bg-secondary-container px-2 py-0.5 text-xs font-medium text-on-secondary-container">
+                                @_profile.Industry
+                            </span>
+                        }
                         <span class="text-xs text-on-surface-variant">
                             Evaluated @_candidate.EvaluatedAt.ToString("g") UTC
                         </span>
@@ -96,6 +110,52 @@
                 </p>
             </div>
         </div>
+
+        @* Company profile *@
+        @if (_profile?.Description is not null)
+        {
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1 mb-4">
+                <details>
+                    <summary class="cursor-pointer text-sm font-semibold text-on-surface select-none flex items-center gap-2">
+                        <svg class="h-4 w-4 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 0h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
+                        </svg>
+                        About @(_profile.Name)
+                    </summary>
+                    <div class="mt-3 space-y-3">
+                        <p class="text-xs text-on-surface-variant leading-relaxed">
+                            @TruncateDescription(_profile.Description)
+                        </p>
+                        <div class="flex flex-wrap gap-x-6 gap-y-1 text-xs text-on-surface-variant">
+                            @if (_profile.MarketCap.HasValue)
+                            {
+                                <span>
+                                    <span class="font-medium text-on-surface">Market Cap:</span>
+                                    @FormatMarketCap(_profile.MarketCap.Value)
+                                </span>
+                            }
+                            @if (_profile.Employees.HasValue)
+                            {
+                                <span>
+                                    <span class="font-medium text-on-surface">Employees:</span>
+                                    @_profile.Employees.Value.ToString("N0")
+                                </span>
+                            }
+                            @if (_profile.HomePageUrl is not null)
+                            {
+                                <a href="@_profile.HomePageUrl" target="_blank" rel="noopener"
+                                   class="text-primary hover:underline">
+                                    Website
+                                    <svg class="inline h-3 w-3 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                    </svg>
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </details>
+            </div>
+        }
 
         @* Market context (expanded) *@
         <MarketContextBar Context="_candidate.MarketContext" ShowDetails="true" />
@@ -202,6 +262,9 @@
     private List<SignalResult> _neutralSignals = new();
     private List<SignalResult> _unavailableSignals = new();
 
+    // Company profile
+    private TickerProfile? _profile;
+
     // Chart data
     private IReadOnlyList<OhlcvRecord>? _ohlcv;
     private List<PriceChart.ChartPoint>? _sma14;
@@ -273,10 +336,11 @@
 
         _loading = false;
 
-        // Load chart data in the background (don't block the page)
+        // Load chart + profile data in the background (don't block the page)
         if (_candidate is not null && (_isPro || _isInFreeLimit))
         {
             _ = LoadChartDataAsync();
+            _ = LoadProfileAsync();
         }
     }
 
@@ -410,6 +474,35 @@
                 ));
             }
         }
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        try
+        {
+            _profile = await MarketData.GetTickerProfileAsync(Ticker);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Profile load failed — page still works
+        }
+    }
+
+    private static string TruncateDescription(string desc)
+    {
+        if (desc.Length <= 300) return desc;
+        // Cut at last space before 300 chars
+        var cut = desc.LastIndexOf(' ', 300);
+        return cut > 0 ? desc[..cut] + "..." : desc[..300] + "...";
+    }
+
+    private static string FormatMarketCap(long cap)
+    {
+        if (cap >= 1_000_000_000_000) return $"${cap / 1_000_000_000_000.0:F1}T";
+        if (cap >= 1_000_000_000) return $"${cap / 1_000_000_000.0:F1}B";
+        if (cap >= 1_000_000) return $"${cap / 1_000_000.0:F0}M";
+        return $"${cap:N0}";
     }
 
     private static string TruncateHeadline(string headline)
