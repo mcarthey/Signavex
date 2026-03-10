@@ -101,16 +101,17 @@ public static class SqliteMigrationTransition
             // Verify the current migrations are applied (not just any old migration names)
             cmd.CommandText =
                 "SELECT COUNT(*) FROM \"__EFMigrationsHistory\" " +
-                "WHERE MigrationId LIKE '%_InitialSqlServer' OR MigrationId LIKE '%_AddSubscriptionFields'";
+                "WHERE MigrationId LIKE '%_InitialSqlServer' OR MigrationId LIKE '%_AddSubscriptionFields' " +
+                "OR MigrationId LIKE '%_AddFundamentalsCache'";
             var currentMigrationCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
             cmd.CommandText =
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN " +
-                "('ScanRuns','AspNetUsers','AspNetRoles')";
+                "('ScanRuns','AspNetUsers','AspNetRoles','FundamentalsCache')";
             var keyTableCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
             // Fully migrated: has the CURRENT migration names and all key tables exist
-            if (currentMigrationCount >= 2 && keyTableCount >= 3)
+            if (currentMigrationCount >= 3 && keyTableCount >= 4)
                 return DbState.AlreadyMigrated;
 
             // Stale or broken state: has old migration names or missing tables
@@ -153,6 +154,7 @@ public static class SqliteMigrationTransition
             await CopyTableAsync(conn, "DailyBriefs", logger);
             await CopyTableAsync(conn, "EconomicSeries", logger);
             await CopyTableAsync(conn, "EconomicSyncTrackers", logger);
+            await CopyTableAsync(conn, "FundamentalsCache", logger);
 
             // Identity parents
             await CopyTableAsync(conn, "AspNetRoles", logger);

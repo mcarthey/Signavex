@@ -16,6 +16,7 @@ public class SignavexDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EconomicObservationEntity> EconomicObservations => Set<EconomicObservationEntity>();
     public DbSet<EconomicSyncTrackerEntity> EconomicSyncTrackers => Set<EconomicSyncTrackerEntity>();
     public DbSet<DailyBriefEntity> DailyBriefs => Set<DailyBriefEntity>();
+    public DbSet<FundamentalsCacheEntity> FundamentalsCache => Set<FundamentalsCacheEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -88,6 +89,14 @@ public class SignavexDbContext : IdentityDbContext<ApplicationUser>
             e.ToTable("DailyBriefs");
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Date).IsUnique();
+        });
+
+        modelBuilder.Entity<FundamentalsCacheEntity>(e =>
+        {
+            e.ToTable("FundamentalsCache");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Ticker).IsUnique();
+            e.HasIndex(x => x.RetrievedAtUtc);
         });
     }
 }

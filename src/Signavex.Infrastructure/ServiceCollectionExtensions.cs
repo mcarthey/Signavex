@@ -83,7 +83,7 @@ public static class ServiceCollectionExtensions
             client.BaseAddress = new Uri(providerOptions.Polygon.BaseUrl);
         }).AddHttpMessageHandler<PolygonRateLimitingHandler>();
 
-        // Register AlphaVantage as the inner provider, then wrap with caching decorator
+        // Register AlphaVantage as the inner provider, then wrap with DB-backed caching decorator
         services.AddHttpClient<AlphaVantageFundamentalsProvider>(client =>
         {
             client.BaseAddress = new Uri(providerOptions.AlphaVantage.BaseUrl);
@@ -91,7 +91,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFundamentalsProvider>(sp =>
             new CachedFundamentalsProvider(
                 sp.GetRequiredService<AlphaVantageFundamentalsProvider>(),
-                sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()));
+                sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+                sp.GetRequiredService<IDbContextFactory<SignavexDbContext>>(),
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger<CachedFundamentalsProvider>()));
 
         services.AddHttpClient<IEconomicDataProvider, FredEconomicDataProvider>(client =>
         {
