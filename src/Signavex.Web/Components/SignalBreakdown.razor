@@ -3,9 +3,11 @@
 <div class="space-y-2">
     @foreach (var signal in Signals.OrderByDescending(s => s.Score * s.Weight))
     {
-        <div class="flex items-center gap-3 rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container-lowest px-4 py-3 @(signal.IsAvailable ? "" : "opacity-50")">
+        <button type="button"
+                class="w-full text-left flex items-center gap-3 rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container-lowest px-4 py-3 transition-colors hover:bg-surface-container cursor-pointer @(signal.IsAvailable ? "" : "opacity-50")"
+                @onclick="() => Toggle(signal.SignalName)">
             @* Score indicator bar *@
-            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-xs)]  @ScoreBgCss(signal.Score)">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-xs)] @ScoreBgCss(signal.Score)">
                 <span class="text-xs font-bold @ScoreTextCss(signal.Score)">
                     @signal.Score.ToString("+0.0;-0.0")
                 </span>
@@ -14,7 +16,7 @@
             @* Signal info *@
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-on-surface">@signal.SignalName</span>
+                    <span class="text-sm font-medium text-on-surface">@FormatName(signal.SignalName)</span>
                     @if (!signal.IsAvailable)
                     {
                         <span class="rounded-[var(--radius-full)] bg-surface-container-high px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">N/A</span>
@@ -27,13 +29,53 @@
             <span class="shrink-0 text-xs font-medium text-on-surface-variant">
                 @signal.Weight.ToString("F1")w
             </span>
-        </div>
+
+            @* Expand chevron *@
+            <svg class="h-3.5 w-3.5 shrink-0 text-on-surface-variant transition-transform @(_expanded == signal.SignalName ? "rotate-180" : "")"
+                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+        </button>
+
+        @if (_expanded == signal.SignalName)
+        {
+            var desc = GetDescription(signal.SignalName);
+            <div class="ml-11 -mt-1 mb-1 rounded-b-[var(--radius-sm)] border border-t-0 border-outline-variant bg-surface-container-lowest px-4 py-3 animate-fade-in">
+                <p class="text-xs text-on-surface-variant leading-relaxed">@signal.Reason</p>
+                @if (!string.IsNullOrEmpty(desc))
+                {
+                    <p class="text-[10px] text-on-surface-variant/60 mt-2 leading-relaxed">@desc</p>
+                }
+            </div>
+        }
     }
 </div>
 
 @code {
     [Parameter, EditorRequired]
     public IEnumerable<SignalResult> Signals { get; set; } = Enumerable.Empty<SignalResult>();
+
+    private string? _expanded;
+
+    private void Toggle(string name) => _expanded = _expanded == name ? null : name;
+
+    private static string FormatName(string name) =>
+        System.Text.RegularExpressions.Regex.Replace(name, "(?<!^)([A-Z])", " $1");
+
+    private static string GetDescription(string name) => name switch
+    {
+        "TrendDirection" => "Analyzes the 20-day price trend slope. A positive slope indicates upward momentum; negative indicates a downtrend.",
+        "VolumeThreshold" => "Compares recent trading volume to the 20-day average. Spikes above 2x average signal unusual interest.",
+        "ChannelPosition" => "Measures where the current price sits within the recent trading range. Near the bottom suggests potential upside; near the top suggests limited room.",
+        "MovingAverageCrossover" => "Compares 14-day vs 30-day moving averages. A bullish crossover (short above long) suggests upward momentum.",
+        "SupportResistance" => "Evaluates price relative to calculated support and resistance levels. Mid-range is neutral; near support is potentially bullish.",
+        "NewsSentiment" => "Aggregates sentiment scores from recent news articles. Positive coverage drives bullish scores.",
+        "AnalystRating" => "Consensus of analyst buy/hold/sell ratings. Strong Buy consensus gives the highest score.",
+        "PeRatioVsIndustry" => "Compares the stock's P/E ratio to its sector average. Trading below peers suggests relative value.",
+        "DebtEquityRatio" => "Evaluates the company's debt-to-equity ratio. Lower leverage is scored more favorably.",
+        "EarningsTrend" => "Compares recent EPS to estimates and prior year. Beating estimates and showing growth drives bullish scores.",
+        _ => ""
+    };
 
     private static string ScoreBgCss(double score) => score switch
     {
