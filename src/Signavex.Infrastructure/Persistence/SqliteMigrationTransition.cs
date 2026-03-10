@@ -36,6 +36,9 @@ public static class SqliteMigrationTransition
 
         var backupPath = dbPath + ".migration_backup";
 
+        SqliteConnection.ClearAllPools();
+        await Task.Delay(200); // Windows file handle release lag
+
         if (File.Exists(backupPath))
         {
             // Previous transition crashed after rename — the backup IS the original data.
@@ -44,8 +47,6 @@ public static class SqliteMigrationTransition
         }
         else
         {
-            SqliteConnection.ClearAllPools();
-            await Task.Delay(200); // Windows file handle release lag
 
             File.Move(dbPath, backupPath);
             MoveIfExists(dbPath + "-wal", backupPath + "-wal");
@@ -98,23 +99,18 @@ public static class SqliteMigrationTransition
         cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory'";
         if (await cmd.ExecuteScalarAsync() is not null)
         {
-            // Verify the current migrations are applied (not just any old migration names)
+            // If the foundational migration (InitialSqlServer) is present, this DB was created
+            // via MigrateAsync and is in good shape. Normal MigrateAsync() will apply any
+            // newer migrations incrementally — no transition needed.
             cmd.CommandText =
                 "SELECT COUNT(*) FROM \"__EFMigrationsHistory\" " +
-                "WHERE MigrationId LIKE '%_InitialSqlServer' OR MigrationId LIKE '%_AddSubscriptionFields' " +
-                "OR MigrationId LIKE '%_AddFundamentalsCache'";
-            var currentMigrationCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                "WHERE MigrationId LIKE '%_InitialSqlServer'";
+            var hasFoundationalMigration = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
 
-            cmd.CommandText =
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN " +
-                "('ScanRuns','AspNetUsers','AspNetRoles','FundamentalsCache')";
-            var keyTableCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
-
-            // Fully migrated: has the CURRENT migration names and all key tables exist
-            if (currentMigrationCount >= 3 && keyTableCount >= 4)
+            if (hasFoundationalMigration)
                 return DbState.AlreadyMigrated;
 
-            // Stale or broken state: has old migration names or missing tables
+            // Has migration history but NOT our current migrations — old bootstrap-era DB
             return DbState.NeedsTransition;
         }
 
