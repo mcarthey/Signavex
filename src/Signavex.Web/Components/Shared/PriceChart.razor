@@ -1,0 +1,190 @@
+@using Signavex.Domain.Models
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest shadow-elevation-1 mb-4 overflow-hidden">
+    @* Header with toggle *@
+    <div class="flex items-center justify-between px-4 pt-4 pb-2">
+        <div class="flex items-center gap-2">
+            <h3 class="text-sm font-semibold text-on-surface">Price History</h3>
+            @if (OhlcvData is not null)
+            {
+                var latest = OhlcvData.LastOrDefault();
+                if (latest is not null)
+                {
+                    <span class="text-xs text-on-surface-variant">
+                        $@latest.Close.ToString("F2")
+                    </span>
+                }
+            }
+        </div>
+        <div class="flex items-center gap-1 rounded-[var(--radius-sm)] bg-surface-container p-0.5">
+            <button type="button"
+                    class="rounded-[var(--radius-xs)] px-3 py-1 text-xs font-medium transition-colors @(_mode == "candlestick" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface")"
+                    @onclick='() => SwitchMode("candlestick")'>
+                Candlestick
+            </button>
+            <button type="button"
+                    class="rounded-[var(--radius-xs)] px-3 py-1 text-xs font-medium transition-colors @(_mode == "line" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface")"
+                    @onclick='() => SwitchMode("line")'>
+                Line
+            </button>
+        </div>
+    </div>
+
+    @* Legend *@
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pb-2 text-[10px] text-on-surface-variant">
+        <span class="flex items-center gap-1">
+            <span class="inline-block h-0.5 w-3 rounded-full" style="background:#d97706"></span>14d MA
+        </span>
+        <span class="flex items-center gap-1">
+            <span class="inline-block h-0.5 w-3 rounded-full" style="background:#7c3aed"></span>30d MA
+        </span>
+        @if (Support.HasValue)
+        {
+            <span class="flex items-center gap-1">
+                <span class="inline-block h-0.5 w-3 rounded-full border-t border-dashed" style="border-color:#16a34a"></span>Support $@Support.Value.ToString("F2")
+            </span>
+        }
+        @if (Resistance.HasValue)
+        {
+            <span class="flex items-center gap-1">
+                <span class="inline-block h-0.5 w-3 rounded-full border-t border-dashed" style="border-color:#dc2626"></span>Resistance $@Resistance.Value.ToString("F2")
+            </span>
+        }
+        @if (Markers is not null && Markers.Any())
+        {
+            <span class="flex items-center gap-1">
+                <span class="inline-block h-2 w-2 rounded-full" style="background:#4f46e5"></span>News
+            </span>
+        }
+    </div>
+
+    @* Chart container *@
+    <div id="@_containerId" style="width:100%; height:@(Height)px;"></div>
+
+    @* Candlestick reading guide (only in candlestick mode) *@
+    @if (_mode == "candlestick")
+    {
+        <div class="px-4 py-2 border-t border-outline-variant bg-surface-container/30">
+            <details class="text-[10px] text-on-surface-variant">
+                <summary class="cursor-pointer font-medium hover:text-on-surface transition-colors select-none">
+                    How to read candlesticks
+                </summary>
+                <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 leading-relaxed">
+                    <span><strong class="text-success">Green candle</strong> = price went up (close &gt; open)</span>
+                    <span><strong class="text-error">Red candle</strong> = price went down (close &lt; open)</span>
+                    <span><strong>Body</strong> = range between open and close prices</span>
+                    <span><strong>Wicks</strong> = intraday high and low beyond open/close</span>
+                    <span><strong>Tall body</strong> = strong directional move</span>
+                    <span><strong>Long wicks</strong> = price was rejected at that level</span>
+                </div>
+            </details>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<OhlcvRecord>? OhlcvData { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ChartPoint>? Sma14 { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ChartPoint>? Sma30 { get; set; }
+
+    [Parameter]
+    public decimal? Support { get; set; }
+
+    [Parameter]
+    public decimal? Resistance { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ChartMarker>? Markers { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ChartAnnotation>? Annotations { get; set; }
+
+    [Parameter]
+    public int Height { get; set; } = 400;
+
+    private string _containerId = $"price-chart-{Guid.NewGuid():N}";
+    private string _mode = "candlestick";
+    private bool _rendered;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && OhlcvData is not null && OhlcvData.Count > 0)
+        {
+            await RenderChart();
+            _rendered = true;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_rendered && OhlcvData is not null && OhlcvData.Count > 0)
+        {
+            await RenderChart();
+        }
+    }
+
+    private async Task RenderChart()
+    {
+        var data = new
+        {
+            ohlcv = OhlcvData!.Select(d => new
+            {
+                date = d.Date.ToString("yyyy-MM-dd"),
+                open = (double)d.Open,
+                high = (double)d.High,
+                low = (double)d.Low,
+                close = (double)d.Close,
+                volume = d.Volume,
+            }).ToArray(),
+            sma14 = Sma14?.Select(d => new { date = d.Date, value = d.Value }).ToArray(),
+            sma30 = Sma30?.Select(d => new { date = d.Date, value = d.Value }).ToArray(),
+            support = Support.HasValue ? (double?)Support.Value : null,
+            resistance = Resistance.HasValue ? (double?)Resistance.Value : null,
+            markers = Markers?.Select(m => new
+            {
+                date = m.Date,
+                text = m.Text,
+                position = m.Position,
+                color = m.Color,
+                shape = m.Shape,
+            }).ToArray(),
+            annotations = Annotations?.Select(a => new
+            {
+                date = a.Date,
+                text = a.Text,
+            }).ToArray(),
+        };
+
+        var options = new { height = Height, mode = _mode };
+        await JS.InvokeVoidAsync("priceChart.create", _containerId, data, options);
+    }
+
+    private async Task SwitchMode(string mode)
+    {
+        _mode = mode;
+        await JS.InvokeVoidAsync("priceChart.switchMode", _containerId, mode);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("priceChart.destroy", _containerId);
+        }
+        catch
+        {
+            // Circuit may already be disposed
+        }
+    }
+
+    public record ChartPoint(string Date, double Value);
+    public record ChartMarker(string Date, string Text, string Position = "belowBar", string Color = "#4f46e5", string Shape = "circle");
+    public record ChartAnnotation(string Date, string Text);
+}

@@ -3,8 +3,11 @@
 @attribute [Authorize]
 @using Signavex.Domain.Interfaces
 @using Signavex.Domain.Models
+@using Signavex.Web.Components.Shared
 @inject IScanHistoryStore HistoryStore
 @inject IScanStateStore StateStore
+@inject IMarketDataProvider MarketData
+@inject INewsDataProvider NewsData
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -97,6 +100,25 @@
         @* Market context (expanded) *@
         <MarketContextBar Context="_candidate.MarketContext" ShowDetails="true" />
 
+        @* Price chart *@
+        @if (_ohlcv is not null && _ohlcv.Count > 0)
+        {
+            <PriceChart OhlcvData="_ohlcv"
+                        Sma14="_sma14"
+                        Sma30="_sma30"
+                        Support="_support"
+                        Resistance="_resistance"
+                        Markers="_chartMarkers"
+                        Annotations="_chartAnnotations" />
+        }
+        else if (_chartLoading)
+        {
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-8 shadow-elevation-1 mb-4 flex items-center justify-center">
+                <div class="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2"></div>
+                <span class="text-sm text-on-surface-variant">Loading price data...</span>
+            </div>
+        }
+
         @* Score History *@
         @if (_tickerHistory is not null && _tickerHistory.Appearances.Count > 1)
         {
@@ -170,6 +192,7 @@
     private StockCandidate? _candidate;
     private TickerHistory? _tickerHistory;
     private bool _loading = true;
+    private bool _chartLoading;
     private bool _isPro;
     private bool _isInFreeLimit;
     private double _maxHistoryScore = 1.0;
@@ -178,6 +201,15 @@
     private List<SignalResult> _bearishSignals = new();
     private List<SignalResult> _neutralSignals = new();
     private List<SignalResult> _unavailableSignals = new();
+
+    // Chart data
+    private IReadOnlyList<OhlcvRecord>? _ohlcv;
+    private List<PriceChart.ChartPoint>? _sma14;
+    private List<PriceChart.ChartPoint>? _sma30;
+    private decimal? _support;
+    private decimal? _resistance;
+    private List<PriceChart.ChartMarker>? _chartMarkers;
+    private List<PriceChart.ChartAnnotation>? _chartAnnotations;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -240,6 +272,151 @@
         }
 
         _loading = false;
+
+        // Load chart data in the background (don't block the page)
+        if (_candidate is not null && (_isPro || _isInFreeLimit))
+        {
+            _ = LoadChartDataAsync();
+        }
+    }
+
+    private async Task LoadChartDataAsync()
+    {
+        _chartLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Fetch 90 days of OHLCV (gives ~60 trading days for good MA coverage)
+            var ohlcvList = (await MarketData.GetDailyOhlcvAsync(Ticker, 90)).ToList();
+            if (ohlcvList.Count == 0) return;
+
+            _ohlcv = ohlcvList;
+
+            // Compute simple moving averages
+            _sma14 = ComputeSma(ohlcvList, 14);
+            _sma30 = ComputeSma(ohlcvList, 30);
+
+            // Support & resistance from 20-day rolling min/max
+            var recent = ohlcvList.TakeLast(20).ToList();
+            if (recent.Count > 0)
+            {
+                _support = recent.Min(r => r.Low);
+                _resistance = recent.Max(r => r.High);
+            }
+
+            // Load news and create chart markers
+            try
+            {
+                var news = await NewsData.GetRecentNewsAsync(Ticker, 90);
+                _chartMarkers = new List<PriceChart.ChartMarker>();
+                _chartAnnotations = new List<PriceChart.ChartAnnotation>();
+
+                var ohlcvDates = new HashSet<string>(ohlcvList.Select(d => d.Date.ToString("yyyy-MM-dd")));
+
+                foreach (var item in news.Take(20))
+                {
+                    var dateStr = DateOnly.FromDateTime(item.PublishedAt).ToString("yyyy-MM-dd");
+                    // Only add marker if we have a candle for that date
+                    if (!ohlcvDates.Contains(dateStr)) continue;
+
+                    var sentimentColor = item.SentimentScore switch
+                    {
+                        > 0.2 => "#16a34a",
+                        < -0.2 => "#dc2626",
+                        _ => "#4f46e5"
+                    };
+
+                    _chartMarkers.Add(new PriceChart.ChartMarker(
+                        dateStr,
+                        TruncateHeadline(item.Headline),
+                        "belowBar",
+                        sentimentColor,
+                        "circle"
+                    ));
+
+                    var summary = !string.IsNullOrWhiteSpace(item.Summary)
+                        ? item.Summary
+                        : item.Headline;
+                    var source = !string.IsNullOrWhiteSpace(item.Source) ? $" ({item.Source})" : "";
+                    _chartAnnotations.Add(new PriceChart.ChartAnnotation(
+                        dateStr,
+                        $"{summary}{source}"
+                    ));
+                }
+
+                // Add volume spike annotations from signal data
+                AddVolumeAnnotations(ohlcvList);
+            }
+            catch
+            {
+                // News load failed — chart still works without markers
+            }
+        }
+        catch
+        {
+            // OHLCV load failed — no chart shown
+        }
+        finally
+        {
+            _chartLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static List<PriceChart.ChartPoint> ComputeSma(IReadOnlyList<OhlcvRecord> data, int period)
+    {
+        var result = new List<PriceChart.ChartPoint>();
+        for (int i = period - 1; i < data.Count; i++)
+        {
+            var avg = 0m;
+            for (int j = i - period + 1; j <= i; j++)
+                avg += data[j].Close;
+            avg /= period;
+
+            result.Add(new PriceChart.ChartPoint(
+                data[i].Date.ToString("yyyy-MM-dd"),
+                (double)avg
+            ));
+        }
+        return result;
+    }
+
+    private void AddVolumeAnnotations(IReadOnlyList<OhlcvRecord> data)
+    {
+        if (data.Count < 21) return;
+
+        _chartAnnotations ??= new();
+
+        // Find volume spikes (> 2x 20-day average)
+        for (int i = 20; i < data.Count; i++)
+        {
+            var avgVol = 0L;
+            for (int j = i - 20; j < i; j++)
+                avgVol += data[j].Volume;
+            avgVol /= 20;
+
+            if (avgVol > 0 && data[i].Volume > avgVol * 2)
+            {
+                var dateStr = data[i].Date.ToString("yyyy-MM-dd");
+                var ratio = (double)data[i].Volume / avgVol;
+
+                // Don't duplicate if there's already a news annotation for this date
+                if (_chartAnnotations.Any(a => a.Date == dateStr)) continue;
+
+                _chartAnnotations.Add(new PriceChart.ChartAnnotation(
+                    dateStr,
+                    $"Volume spike: {ratio:F1}x average ({data[i].Volume:N0} vs {avgVol:N0} avg)"
+                ));
+            }
+        }
+    }
+
+    private static string TruncateHeadline(string headline)
+    {
+        // Markers have limited space — keep it short
+        if (headline.Length <= 20) return headline;
+        return headline[..17] + "...";
     }
 
     private static string BarCss(double score) => score switch
