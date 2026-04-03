@@ -1,6 +1,8 @@
+using Signavex.Domain.Configuration;
 using Signavex.Domain.Interfaces;
 using Signavex.Domain.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Signavex.Engine;
 
@@ -17,6 +19,7 @@ public class BacktestService
     private readonly StockEvaluator _stockEvaluator;
     private readonly UniverseProvider _universeProvider;
     private readonly ILogger<BacktestService> _logger;
+    private readonly double _surfacingThreshold;
 
     private const int OhlcvDays = 500; // Fetch extra to allow trimming
     private const string Caveat = "News and fundamental data reflect current values, not historical. " +
@@ -28,6 +31,7 @@ public class BacktestService
         MarketEvaluator marketEvaluator,
         StockEvaluator stockEvaluator,
         UniverseProvider universeProvider,
+        IOptions<SignavexOptions> options,
         ILogger<BacktestService> logger)
     {
         _marketDataProvider = marketDataProvider;
@@ -35,6 +39,7 @@ public class BacktestService
         _marketEvaluator = marketEvaluator;
         _stockEvaluator = stockEvaluator;
         _universeProvider = universeProvider;
+        _surfacingThreshold = options.Value.SurfacingThreshold;
         _logger = logger;
     }
 
@@ -76,12 +81,7 @@ public class BacktestService
                 // News and fundamentals are current-day (not historically available)
                 var stockData = new StockData(ticker, ticker, ohlcv, null, Array.Empty<NewsItem>());
                 var candidate = await _stockEvaluator.EvaluateAsync(stockData, marketContext, tier);
-
-                if (candidate is not null)
-                {
-                    candidates.Add(candidate);
-                    _logger.LogInformation("Backtest surfaced: {Ticker} (score: {Score:F3})", ticker, candidate.FinalScore);
-                }
+                candidates.Add(candidate);
             }
             catch (Exception ex)
             {
@@ -89,9 +89,11 @@ public class BacktestService
             }
         }
 
-        _logger.LogInformation("Backtest complete for {AsOfDate}. {Count} candidates surfaced.", asOfDate, candidates.Count);
+        var surfaced = candidates.Where(c => c.FinalScore >= _surfacingThreshold).ToList();
+        _logger.LogInformation("Backtest complete for {AsOfDate}. {Surfaced}/{Total} candidates surfaced (threshold: {Threshold:F2}).",
+            asOfDate, surfaced.Count, candidates.Count, _surfacingThreshold);
 
-        var sorted = candidates.OrderByDescending(c => c.FinalScore).ToList().AsReadOnly();
+        var sorted = surfaced.OrderByDescending(c => c.FinalScore).ToList().AsReadOnly();
         return new BacktestResult(asOfDate, sorted, marketContext, Caveat);
     }
 

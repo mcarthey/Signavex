@@ -51,7 +51,7 @@ public class BacktestServiceTests
 
         var service = new BacktestService(
             marketData.Object, economicProvider.Object, marketEvaluator,
-            stockEvaluator, universeProvider, NullLogger<BacktestService>.Instance);
+            stockEvaluator, universeProvider, DefaultOptions, NullLogger<BacktestService>.Instance);
 
         return (service, marketData);
     }
