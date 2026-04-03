@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Signavex.Domain.Configuration;
 using Signavex.Domain.Enums;
 using Signavex.Domain.Interfaces;
 using Signavex.Domain.Models;
@@ -13,6 +15,7 @@ public class SqliteScanStateStore : IScanStateStore
 {
     private readonly IDbContextFactory<SignavexDbContext> _dbFactory;
     private readonly ILogger<SqliteScanStateStore> _logger;
+    private readonly double _surfacingThreshold;
 
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,10 +26,12 @@ public class SqliteScanStateStore : IScanStateStore
 
     public SqliteScanStateStore(
         IDbContextFactory<SignavexDbContext> dbFactory,
-        ILogger<SqliteScanStateStore> logger)
+        ILogger<SqliteScanStateStore> logger,
+        IOptions<SignavexOptions> options)
     {
         _dbFactory = dbFactory;
         _logger = logger;
+        _surfacingThreshold = options.Value.SurfacingThreshold;
     }
 
     public Task SaveCheckpointAsync(ScanCheckpoint checkpoint, CancellationToken ct = default)
@@ -50,7 +55,7 @@ public class SqliteScanStateStore : IScanStateStore
             existing.Total = total;
             existing.CurrentTicker = checkpoint.EvaluatedTickers.Count > 0
                 ? checkpoint.EvaluatedTickers[^1] : string.Empty;
-            existing.CandidatesFound = checkpoint.CandidatesSoFar.Count;
+            existing.CandidatesFound = checkpoint.CandidatesSoFar.Count(c => c.FinalScore >= _surfacingThreshold);
             existing.ErrorCount = checkpoint.ErrorCount;
             existing.IsActive = true;
         }
@@ -66,7 +71,7 @@ public class SqliteScanStateStore : IScanStateStore
                 Total = total,
                 CurrentTicker = checkpoint.EvaluatedTickers.Count > 0
                     ? checkpoint.EvaluatedTickers[^1] : string.Empty,
-                CandidatesFound = checkpoint.CandidatesSoFar.Count,
+                CandidatesFound = checkpoint.CandidatesSoFar.Count(c => c.FinalScore >= _surfacingThreshold),
                 ErrorCount = checkpoint.ErrorCount,
                 IsActive = true
             });
@@ -116,7 +121,7 @@ public class SqliteScanStateStore : IScanStateStore
             MarketSignalsJson = JsonSerializer.Serialize(result.MarketContext.MarketSignals, JsonOptions),
             TotalEvaluated = result.TotalEvaluated,
             ErrorCount = result.ErrorCount,
-            CandidateCount = result.Candidates.Count,
+            CandidateCount = result.Candidates.Count(c => c.FinalScore >= _surfacingThreshold),
             Candidates = result.Candidates.Select(c => new ScanCandidateEntity
             {
                 Ticker = c.Ticker,

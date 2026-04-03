@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Signavex.Domain.Configuration;
 using Signavex.Domain.Models;
 using Signavex.Infrastructure.Persistence;
 
@@ -23,7 +25,8 @@ public class SqliteScanStateStoreTests : IAsyncDisposable
         using var db = _factory.CreateDbContext();
         db.Database.EnsureCreated();
 
-        _store = new SqliteScanStateStore(_factory, NullLogger<SqliteScanStateStore>.Instance);
+        _store = new SqliteScanStateStore(_factory, NullLogger<SqliteScanStateStore>.Instance,
+            Options.Create(new SignavexOptions()));
     }
 
     public async ValueTask DisposeAsync()
