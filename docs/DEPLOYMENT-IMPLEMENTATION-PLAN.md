@@ -573,6 +573,101 @@ _Not blocked by launch. Build based on user feedback and demand._
 
 ---
 
+## Phase 9 — Azure Deployment (Alternative to SmarterASP)
+
+_Goal: Deploy Signavex to Azure as a standalone service or as a backend for learnedgeek.com. This is an alternative to the SmarterASP path (Phase 1C) — choose one._
+
+**Why consider Azure over SmarterASP:**
+- Dedicated Worker process (WebJob or Container App) instead of in-process background services
+- No app pool recycling interrupting long scans
+- Azure SQL with proper connection pooling and monitoring
+- Easy scaling if Signavex becomes a feature of learnedgeek.com
+- Better fit for a real product vs. personal monitoring tool
+
+**Tradeoffs:**
+- More expensive (~$30-50/mo for App Service B1 + Azure SQL Basic vs. ~$5-10/mo SmarterASP)
+- More infrastructure to manage (resource groups, networking, identity)
+- Overkill if Signavex stays a personal monitoring tool
+
+### 9A. Azure Architecture Options
+
+- [ ] **9A.1** Option A: App Service + WebJob (simplest)
+  - Web app on Azure App Service (B1 tier, ~$13/mo)
+  - Worker as a Continuous WebJob in the same App Service (no extra cost)
+  - Azure SQL Basic (~$5/mo) or S0 ($15/mo) for production
+  - Total: ~$18-28/mo
+  - Limitations: WebJob shares resources with Web app; App Service can still restart
+
+- [ ] **9A.2** Option B: App Service + Container App (recommended)
+  - Web app on Azure App Service (B1 tier)
+  - Worker as Azure Container App (Consumption tier, ~$0-5/mo for daily scan workload)
+  - Azure SQL Basic/S0
+  - Total: ~$18-33/mo
+  - Benefits: Worker is fully independent, can scale separately, no restarts during scans
+
+- [ ] **9A.3** Option C: Single Container App with sidecar (advanced)
+  - Both Web + Worker in a single Azure Container App with multi-container revision
+  - Most cost-efficient but more complex deployment
+  - Best for: keeping costs minimal while getting container isolation
+
+### 9B. Azure Infrastructure Setup
+
+- [ ] **9B.1** Create Azure resource group for Signavex
+  - Resource group: `rg-signavex-prod`
+  - Location: East US (closest to user)
+
+- [ ] **9B.2** Provision Azure SQL database
+  - Server: `sql-signavex-prod`
+  - Database: `signavex`
+  - Tier: Basic ($5/mo) initially, scale to S0 if needed
+  - Configure firewall rules for App Service and local dev
+
+- [ ] **9B.3** Provision Azure App Service
+  - Plan: B1 (Linux) — $13/mo
+  - Runtime: .NET 8
+  - Configure app settings (same env vars as SmarterASP Phase 1C)
+  - `DatabaseProvider=SqlServer`, `ConnectionString=<Azure SQL connection string>`
+  - `RunBackgroundServices=true` (if using WebJob) or `false` (if using Container App for Worker)
+
+- [ ] **9B.4** Configure deployment
+  - GitHub Actions: update `deploy.yml` to target Azure App Service instead of FTP
+  - Use `azure/webapps-deploy@v2` action with publish profile
+  - **Files:** `.github/workflows/deploy.yml`
+
+- [ ] **9B.5** DNS and SSL
+  - Point `signavex.com` (or subdomain of `learnedgeek.com`) to Azure App Service
+  - Azure provides free managed SSL certificates for custom domains
+
+### 9C. LearnedGeek Integration Options
+
+- [ ] **9C.1** Option A: Subdomain deployment
+  - Deploy Signavex at `signavex.learnedgeek.com` or `stocks.learnedgeek.com`
+  - Separate Azure App Service, linked via DNS CNAME
+  - No code changes to either site — just DNS configuration
+
+- [ ] **9C.2** Option B: Embedded widgets
+  - Expose a public API endpoint from Signavex for market summary / latest candidates
+  - Embed an iframe or fetch via JS on learnedgeek.com pages
+  - **Files:** New `Api/PublicController.cs` with rate-limited endpoints
+
+- [ ] **9C.3** Option C: Unified deployment (long-term)
+  - Merge Signavex features into learnedgeek.com as a section/module
+  - Requires shared auth, shared database or service bus
+  - Only worthwhile if both apps share significant user base
+
+### 9D. Migration from Local/SmarterASP to Azure
+
+- [ ] **9D.1** Export existing SQLite data to Azure SQL
+  - Use `dotnet-ef database update` to create schema on Azure SQL
+  - Export/import data via CSV or a one-time migration script
+  - Verify scan history, fundamentals cache, and user accounts transfer correctly
+
+- [ ] **9D.2** Update Worker to use Azure SQL connection string
+  - Same `appsettings.Production.json` pattern, just swap connection string
+  - Worker can run locally pointing to Azure SQL during transition
+
+---
+
 ## Quick Reference: Files by Phase
 
 | Phase | Key Files |
@@ -597,17 +692,28 @@ _Not blocked by launch. Build based on user feedback and demand._
 | 7B | `Dashboard.razor`, new `Shared/SignalBreakdown.razor` |
 | 8A | New `Admin/` pages, `RoleSeeder.cs`, `NavMenu.razor` |
 | 8B | New `INtfyNotifier`, `NtfyNotifier`, `NtfyOptions`, `WorkerScanOrchestrator.cs` |
+| 9B | `.github/workflows/deploy.yml`, Azure portal configuration |
+| 9C | New `Api/PublicController.cs` (if embedding widgets) |
 
 ## Dependency Graph
 
 ```
-Phase 1C (hosting) ──> Production is live (SQL Server, background services in-process)
+Hosting (choose one):
+  Phase 1C (SmarterASP) ──> Production is live (SQL Server, in-process services)
+  Phase 9B (Azure)       ──> Production is live (Azure SQL, dedicated Worker optional)
+  Phase 9C (LearnedGeek) ──> Requires 9B first
 
 Phase 6A (fix data gaps) ──┐
 Phase 6B (lower threshold) ┼──> Phase 6C (store all stocks) ──> Phase 7 (slider + signal cards)
                            └──> Immediate improvement even without slider
 
-Phase 8 (admin + ntfy) ──> Independent, can start any time after Phase 1
+Phase 6A.3 ✅  Fundamentals cache (done)
+Phase 6B   ✅  Lower threshold to 0.45 (done)
+Phase 6C   ✅  Store all evaluated stocks (done)
+New signals ✅  RSI, MACD, Bollinger Bands (done)
+Backfill   ✅  FundamentalsBackfillService (done)
+
+Phase 8 (admin + ntfy) ──> Independent, can start any time after hosting
 ```
 
 ## Remaining manual steps (no code changes needed):
@@ -619,3 +725,5 @@ Phase 8 (admin + ntfy) ──> Independent, can start any time after Phase 1
   5. Phase 5A — CI secrets: Add GitHub secrets: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, FTP_REMOTE_DIR
   6. Phase 5C — Marketing landing page: Post-launch backlog item (static HTML, separate from Blazor app)
   7. Phase 8B — Ntfy: Choose a topic name, optionally set up ntfy.sh authentication for private topics
+  8. Phase 9B — Azure: Create resource group, provision Azure SQL and App Service, configure app settings and deploy pipeline
+  9. Phase 9C — LearnedGeek: Choose integration approach (subdomain, widgets, or unified), configure DNS
