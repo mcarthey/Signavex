@@ -26,7 +26,7 @@ public class StockEvaluator
         _options = options.Value;
     }
 
-    public async Task<StockCandidate?> EvaluateAsync(
+    public async Task<StockCandidate> EvaluateAsync(
         StockData stock,
         MarketContext marketContext,
         MarketTier tier)
@@ -36,13 +36,6 @@ public class StockEvaluator
 
         double rawScore = _scoreCalculator.CalculateWeightedScore(results);
         double finalScore = _scoreCalculator.ApplyMarketMultiplier(rawScore, marketContext.Multiplier);
-
-        double threshold = tier == MarketTier.SP600
-            ? 0.75
-            : _options.SurfacingThreshold;
-
-        if (finalScore < threshold)
-            return null;
 
         return new StockCandidate(
             stock.Ticker,

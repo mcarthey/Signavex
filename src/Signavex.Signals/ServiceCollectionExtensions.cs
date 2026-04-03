@@ -21,6 +21,9 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IStockSignal, SupportResistanceSignal>();
         services.AddTransient<IStockSignal, TrendDirectionSignal>();
         services.AddTransient<IStockSignal, ChannelPositionSignal>();
+        services.AddTransient<IStockSignal, RsiSignal>();
+        services.AddTransient<IStockSignal, MacdSignal>();
+        services.AddTransient<IStockSignal, BollingerBandSignal>();
         services.AddTransient<IStockSignal, NewsSentimentSignal>();
         services.AddTransient<IStockSignal, AnalystRatingSignal>();
         services.AddTransient<IStockSignal, PeRatioSignal>();

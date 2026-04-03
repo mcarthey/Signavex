@@ -56,14 +56,14 @@ public class ScanEngine
     public Task<ScanRunResult> RunScanAsync(
         IProgress<ScanProgress>? progress,
         ScanResumeState? resumeState,
-        Func<string, StockCandidate?, Task>? onStockEvaluated,
+        Func<string, StockCandidate, Task>? onStockEvaluated,
         CancellationToken cancellationToken = default)
         => RunScanAsync(progress, resumeState, onStockEvaluated, null, cancellationToken);
 
     public async Task<ScanRunResult> RunScanAsync(
         IProgress<ScanProgress>? progress,
         ScanResumeState? resumeState,
-        Func<string, StockCandidate?, Task>? onStockEvaluated,
+        Func<string, StockCandidate, Task>? onStockEvaluated,
         Action<MarketContext>? onMarketContextReady,
         CancellationToken cancellationToken = default)
     {
@@ -107,7 +107,6 @@ public class ScanEngine
 
             progress?.Report(new ScanProgress(evaluated, universe.Count, ticker, errorCount));
 
-            StockCandidate? candidate = null;
             try
             {
                 var ohlcv = (await _marketDataProvider.GetDailyOhlcvAsync(ticker, OhlcvDays)).ToList().AsReadOnly();
@@ -115,13 +114,11 @@ public class ScanEngine
                 var fundamentals = await _fundamentalsProvider.GetFundamentalsAsync(ticker);
 
                 var stockData = new StockData(ticker, ticker, ohlcv, fundamentals, news);
-                candidate = await _stockEvaluator.EvaluateAsync(stockData, marketContext, tier);
+                var candidate = await _stockEvaluator.EvaluateAsync(stockData, marketContext, tier);
+                candidates.Add(candidate);
 
-                if (candidate is not null)
-                {
-                    candidates.Add(candidate);
-                    _logger.LogInformation("Surfaced: {Ticker} (score: {Score:F3})", ticker, candidate.FinalScore);
-                }
+                if (onStockEvaluated is not null)
+                    await onStockEvaluated(ticker, candidate);
             }
             catch (Exception ex)
             {
@@ -130,9 +127,6 @@ public class ScanEngine
             }
 
             evaluated++;
-
-            if (onStockEvaluated is not null)
-                await onStockEvaluated(ticker, candidate);
         }
 
         progress?.Report(new ScanProgress(evaluated, universe.Count, "", errorCount));

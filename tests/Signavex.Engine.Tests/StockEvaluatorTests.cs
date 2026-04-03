@@ -36,7 +36,7 @@ public class StockEvaluatorTests
     }
 
     [Fact]
-    public async Task BelowThreshold_ReturnsNull()
+    public async Task BelowThreshold_StillReturnsCandidateForStorageAndFiltering()
     {
         var signal = new Mock<IStockSignal>();
         signal.Setup(s => s.EvaluateAsync(It.IsAny<StockData>()))
@@ -45,7 +45,9 @@ public class StockEvaluatorTests
         var evaluator = new StockEvaluator(new[] { signal.Object }, _calculator, DefaultOptions);
         var result = await evaluator.EvaluateAsync(TestStock, NeutralMarket, MarketTier.SP500);
 
-        Assert.Null(result);
+        Assert.NotNull(result);
+        Assert.Equal(0.3, result.RawScore, precision: 4);
+        Assert.Equal(0.3, result.FinalScore, precision: 4);
     }
 
     [Fact]
@@ -65,7 +67,7 @@ public class StockEvaluatorTests
     }
 
     [Fact]
-    public async Task SP600_UsesHigherThreshold()
+    public async Task AllTiers_ReturnCandidateRegardlessOfScore()
     {
         var signal = new Mock<IStockSignal>();
         signal.Setup(s => s.EvaluateAsync(It.IsAny<StockData>()))
@@ -73,11 +75,13 @@ public class StockEvaluatorTests
 
         var evaluator = new StockEvaluator(new[] { signal.Object }, _calculator, DefaultOptions);
 
-        // 0.7 passes SP500 threshold (0.65) but not SP600 threshold (0.75)
+        // Both tiers return candidates — threshold filtering happens at display time
         var sp500Result = await evaluator.EvaluateAsync(TestStock, NeutralMarket, MarketTier.SP500);
         var sp600Result = await evaluator.EvaluateAsync(TestStock, NeutralMarket, MarketTier.SP600);
 
         Assert.NotNull(sp500Result);
-        Assert.Null(sp600Result);
+        Assert.NotNull(sp600Result);
+        Assert.Equal(0.7, sp500Result.FinalScore, precision: 4);
+        Assert.Equal(0.7, sp600Result.FinalScore, precision: 4);
     }
 }

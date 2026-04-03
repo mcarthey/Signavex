@@ -353,10 +353,15 @@
     {
         get
         {
-            if (_scanStatus?.IsScanning == true && _liveCandidates.Count > 0)
-                return _liveCandidates;
+            var threshold = Options.Value.SurfacingThreshold;
+            IEnumerable<StockCandidate> results;
 
-            return _latestResults;
+            if (_scanStatus?.IsScanning == true && _liveCandidates.Count > 0)
+                results = _liveCandidates;
+            else
+                results = _latestResults;
+
+            return results.Where(c => c.FinalScore >= threshold);
         }
     }
 

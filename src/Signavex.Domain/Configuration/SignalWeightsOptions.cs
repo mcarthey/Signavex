@@ -11,6 +11,9 @@ public class SignalWeightsOptions
     public double SupportResistance { get; set; } = 1.2;
     public double TrendDirection { get; set; } = 1.5;
     public double ChannelPosition { get; set; } = 1.0;
+    public double Rsi { get; set; } = 1.2;
+    public double Macd { get; set; } = 1.0;
+    public double BollingerBands { get; set; } = 0.8;
     public double NewsSentiment { get; set; } = 1.3;
     public double AnalystRating { get; set; } = 1.2;
     public double PeRatioVsIndustry { get; set; } = 1.0;

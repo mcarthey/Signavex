@@ -115,12 +115,10 @@ public class WorkerScanOrchestrator
                     p.Evaluated, p.Total, p.CurrentTicker, allCandidates.Count, p.ErrorCount);
             }
         });
-        Func<string, StockCandidate?, Task> onStockEvaluated = async (ticker, candidate) =>
+        Func<string, StockCandidate, Task> onStockEvaluated = async (ticker, candidate) =>
         {
             evaluatedTickers.Add(ticker);
-
-            if (candidate is not null)
-                allCandidates.Add(candidate);
+            allCandidates.Add(candidate);
 
             // Save checkpoint with scalar progress columns
             try

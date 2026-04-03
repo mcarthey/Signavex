@@ -49,6 +49,7 @@ builder.Services.AddHostedService<ScanResumeBackgroundService>();
 builder.Services.AddHostedService<DailyScanBackgroundService>();
 builder.Services.AddHostedService<EconomicDataSyncService>();
 builder.Services.AddHostedService<DailyBriefBackgroundService>();
+builder.Services.AddHostedService<FundamentalsBackfillService>();
 
 var host = builder.Build();
 
