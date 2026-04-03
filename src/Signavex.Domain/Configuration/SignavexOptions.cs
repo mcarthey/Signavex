@@ -8,10 +8,10 @@ public class SignavexOptions
     public const string SectionName = "Signavex";
 
     /// <summary>
-    /// Minimum FinalScore for a stock to be surfaced in the dashboard (default 0.65).
+    /// Minimum FinalScore for a stock to be surfaced in the dashboard (default 0.45).
     /// Small-cap tier uses 0.75.
     /// </summary>
-    public double SurfacingThreshold { get; set; } = 0.65;
+    public double SurfacingThreshold { get; set; } = 0.45;
 
     /// <summary>
     /// Which index universes to scan. Valid values: "SP500", "SP400", "SP600".
