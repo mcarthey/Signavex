@@ -668,6 +668,150 @@ _Goal: Deploy Signavex to Azure as a standalone service or as a backend for lear
 
 ---
 
+## Phase 10 — Cloudflare Subdirectory Routing for SEO (Recommended)
+
+_Goal: Serve Signavex at `learnedgeek.com/stocks/` so it inherits the parent domain's SEO authority. Uses Cloudflare Workers as a reverse proxy — both apps stay on SmarterASP as separate sites._
+
+**Why this approach:**
+- Subdirectory (`/stocks/`) inherits domain authority from learnedgeek.com (Google treats it as one site)
+- Subdomains are treated as semi-separate sites by search engines — weaker SEO
+- Cloudflare is already managing DNS for learnedgeek.com
+- Both apps can remain on SmarterASP (cheapest hosting, ~$5-10/mo each)
+- Cloudflare Workers free tier: 100K requests/day — more than enough
+
+**How it works:**
+```
+User → learnedgeek.com/stocks/dashboard
+  ↓
+Cloudflare Worker (edge, <1ms routing decision)
+  ├── /stocks/* → strips prefix, forwards to signavex.smarterasp.net
+  └── everything else → forwards to learnedgeek.smarterasp.net
+  ↓
+Response flows back through Cloudflare → User
+```
+
+### 10A. Cloudflare Worker Setup
+
+- [ ] **10A.1** Create Cloudflare Worker for path-based routing
+  - Cloudflare Dashboard → Workers & Pages → Create Worker
+  - Route: `learnedgeek.com/stocks/*`
+  - The Worker intercepts `/stocks/*` requests and proxies them to Signavex's origin
+  - All other requests pass through to the default origin (LearnedGeek)
+  - Worker script (~20 lines):
+    ```javascript
+    export default {
+      async fetch(request) {
+        const url = new URL(request.url);
+
+        if (url.pathname.startsWith('/stocks')) {
+          // Strip /stocks prefix and forward to Signavex origin
+          const newPath = url.pathname.replace(/^\/stocks/, '') || '/';
+          const signavexUrl = `https://signavex.smarterasp.net${newPath}${url.search}`;
+
+          const newRequest = new Request(signavexUrl, {
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
+          });
+
+          // Preserve the original host for cookie/auth purposes
+          newRequest.headers.set('X-Forwarded-Host', url.hostname);
+          newRequest.headers.set('X-Forwarded-Proto', 'https');
+
+          return fetch(newRequest);
+        }
+
+        // Everything else goes to default origin (LearnedGeek)
+        return fetch(request);
+      }
+    };
+    ```
+  - **Cost:** Free tier (100K req/day)
+
+- [ ] **10A.2** Configure Worker route in Cloudflare
+  - Workers → Routes → Add Route
+  - Route pattern: `learnedgeek.com/stocks/*`
+  - Assign the Worker created in 10A.1
+  - The default DNS record for `learnedgeek.com` continues to point to LearnedGeek's SmarterASP site
+
+### 10B. Signavex Base Path Configuration
+
+- [ ] **10B.1** Configure Blazor to serve under `/stocks` base path
+  - Update `<base href="/" />` to `<base href="/stocks/" />` in `App.razor`
+  - This ensures all generated links, CSS, JS, and Blazor routing use the `/stocks/` prefix
+  - **Files:** `Components/App.razor`
+
+- [ ] **10B.2** Update `Program.cs` to handle path base from config
+  - Add `app.UsePathBase("/stocks")` when running behind the proxy
+  - Make configurable via `appsettings.json` so local dev stays at `/`
+  - ```csharp
+    var pathBase = builder.Configuration["Signavex:PathBase"];
+    if (!string.IsNullOrEmpty(pathBase))
+        app.UsePathBase(pathBase);
+    ```
+  - **Files:** `Web/Program.cs`, `Web/appsettings.json` (add `PathBase` key)
+
+- [ ] **10B.3** Update forwarded headers middleware
+  - Signavex needs to trust `X-Forwarded-Host` and `X-Forwarded-Proto` from Cloudflare
+  - Add/configure `app.UseForwardedHeaders()` before auth middleware
+  - This ensures HTTPS redirects, cookie domains, and OAuth callbacks work correctly
+  - **Files:** `Web/Program.cs`
+
+- [ ] **10B.4** Update static asset paths
+  - CSS (`app.built.css`), JS (`price-chart.js`, `download.js`), and favicon
+  - With `<base href="/stocks/" />`, relative paths should resolve correctly
+  - Verify lightweight-charts CDN link (absolute URL, unaffected)
+  - Verify Blazor SignalR hub reconnects on the correct path (`/stocks/_blazor`)
+
+- [ ] **10B.5** Test locally with path base
+  - Run with `dotnet run --urls "https://localhost:5112"` and set `PathBase=/stocks`
+  - All routes should work at `localhost:5112/stocks/dashboard`, etc.
+  - Verify SignalR circuit connects, chart JS interop works, auth cookies set correctly
+
+### 10C. SmarterASP DNS Setup
+
+- [ ] **10C.1** Provision Signavex site on SmarterASP
+  - Create a new site (separate from LearnedGeek)
+  - Assign SmarterASP subdomain: `signavex.smarterasp.net` (or similar)
+  - Configure MSSQL database (same as Phase 1C)
+  - Set environment variables (API keys, `RunBackgroundServices=true`, `PathBase=/stocks`)
+  - Deploy Signavex Web app via FTP
+
+- [ ] **10C.2** Verify Signavex works directly at SmarterASP subdomain
+  - Browse `signavex.smarterasp.net/stocks/dashboard`
+  - Confirm login, scanning, charts all work under the `/stocks` prefix
+
+- [ ] **10C.3** Configure Cloudflare DNS (if not already done)
+  - `learnedgeek.com` A/CNAME record → LearnedGeek's SmarterASP IP/hostname
+  - Enable Cloudflare proxy (orange cloud) — required for Workers to intercept
+  - No separate DNS record needed for Signavex — the Worker handles routing
+
+- [ ] **10C.4** End-to-end smoke test
+  - `learnedgeek.com/` → LearnedGeek site loads
+  - `learnedgeek.com/stocks/` → Signavex dashboard loads
+  - `learnedgeek.com/stocks/candidate/AAPL` → Candidate detail loads with chart
+  - Login/auth works across the `/stocks` path
+  - Verify Google can crawl: `site:learnedgeek.com/stocks` (after indexing)
+
+### 10D. SEO Configuration
+
+- [ ] **10D.1** Add Signavex pages to LearnedGeek's sitemap
+  - Include key Signavex URLs in the main `learnedgeek.com/sitemap.xml`
+  - E.g., `/stocks/`, `/stocks/economy`, `/stocks/insights`
+  - Submit updated sitemap to Google Search Console
+
+- [ ] **10D.2** Add cross-navigation between sites
+  - LearnedGeek nav: add "Stock Screener" or "Market Analysis" link → `/stocks/`
+  - Signavex nav: add "Back to LearnedGeek" link → `/`
+  - Internal links between the sites strengthen the subdirectory SEO signal
+
+- [ ] **10D.3** Meta tags and structured data
+  - Ensure Signavex pages have proper `<title>`, `<meta description>`, and Open Graph tags
+  - Consider FinancialProduct or Dataset schema markup for candidate pages
+  - **Files:** `Components/App.razor`, individual page `<PageTitle>` directives
+
+---
+
 ## Quick Reference: Files by Phase
 
 | Phase | Key Files |
@@ -694,6 +838,9 @@ _Goal: Deploy Signavex to Azure as a standalone service or as a backend for lear
 | 8B | New `INtfyNotifier`, `NtfyNotifier`, `NtfyOptions`, `WorkerScanOrchestrator.cs` |
 | 9B | `.github/workflows/deploy.yml`, Azure portal configuration |
 | 9C | New `Api/PublicController.cs` (if embedding widgets) |
+| 10A | Cloudflare Worker script (Cloudflare dashboard, no repo code) |
+| 10B | `Components/App.razor`, `Web/Program.cs`, `Web/appsettings.json` |
+| 10D | `sitemap.xml`, `Components/App.razor`, page `<PageTitle>` directives |
 
 ## Dependency Graph
 
@@ -701,7 +848,13 @@ _Goal: Deploy Signavex to Azure as a standalone service or as a backend for lear
 Hosting (choose one):
   Phase 1C (SmarterASP) ──> Production is live (SQL Server, in-process services)
   Phase 9B (Azure)       ──> Production is live (Azure SQL, dedicated Worker optional)
-  Phase 9C (LearnedGeek) ──> Requires 9B first
+
+SEO integration (recommended path):
+  Phase 1C (SmarterASP) ──> Phase 10A (Cloudflare Worker) ──> Phase 10B (base path config)
+       ↓                         ↓
+  Both apps on SmarterASP   Cloudflare routes /stocks/* to Signavex
+       ↓                         ↓
+  Phase 10C (DNS + deploy)  Phase 10D (sitemap, meta tags, cross-nav)
 
 Phase 6A (fix data gaps) ──┐
 Phase 6B (lower threshold) ┼──> Phase 6C (store all stocks) ──> Phase 7 (slider + signal cards)
@@ -725,5 +878,6 @@ Phase 8 (admin + ntfy) ──> Independent, can start any time after hosting
   5. Phase 5A — CI secrets: Add GitHub secrets: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, FTP_REMOTE_DIR
   6. Phase 5C — Marketing landing page: Post-launch backlog item (static HTML, separate from Blazor app)
   7. Phase 8B — Ntfy: Choose a topic name, optionally set up ntfy.sh authentication for private topics
-  8. Phase 9B — Azure: Create resource group, provision Azure SQL and App Service, configure app settings and deploy pipeline
-  9. Phase 9C — LearnedGeek: Choose integration approach (subdomain, widgets, or unified), configure DNS
+  8. Phase 9B — Azure (alternative): Create resource group, provision Azure SQL and App Service, configure deploy pipeline
+  9. Phase 10A — Cloudflare Worker: Create Worker script for `/stocks/*` routing in Cloudflare dashboard
+  10. Phase 10C — SmarterASP: Provision Signavex site, deploy, configure Cloudflare DNS with proxy enabled
