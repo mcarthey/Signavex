@@ -299,7 +299,7 @@ _Goal: Preserve the month of scan history, daily briefs, and economic data accum
 
 #### R3.A — Pre-Migration Inventory
 
-- [ ] **R3.1** Record exact row counts from SQLite before touching anything
+- [x] **R3.1** Record exact row counts from SQLite before touching anything
 - Run counts against every table and save the output:
   ```sql
   SELECT 'ScanRuns' as tbl, COUNT(*) FROM ScanRuns
@@ -309,26 +309,26 @@ _Goal: Preserve the month of scan history, daily briefs, and economic data accum
 - Save this output to a file (`tools/pre-migration-counts.txt`)
 - **This is the acceptance criteria for the migration — every count must match.**
 
-- [ ] **R3.2** Back up the SQLite database
+- [x] **R3.2** Back up the SQLite database
 - Copy `src/Signavex.Web/data/signavex.db` to a safe location outside the repo
 - This is the rollback path — if anything goes wrong, we restore from this copy
 - **Do not proceed until the backup exists and is verified readable**
 
 #### R3.B — Run the Migration
 
-- [ ] **R3.3** Stop any running processes that use the database
+- [x] **R3.3** Stop any running processes that use the database
 - Stop the Worker Windows Service
 - Stop the Web app if running
 - No process should hold a lock on either SQLite or LocalDB during migration
 
-- [ ] **R3.4** Run the data migration tool
+- [x] **R3.4** Run the data migration tool
 - Use `tools/MigrateData` project
 - Source: SQLite backup (read-only mode)
 - Target: LocalDB (freshly migrated from R1)
 - The tool reads from source, writes to target — source is never modified
 - **Watch for errors — any failure means stop and investigate, don't retry blindly**
 
-- [ ] **R3.5** Verify row counts match
+- [x] **R3.5** Verify row counts match
 - Run the same count query against LocalDB
 - Compare every table count against `pre-migration-counts.txt`
 - If any count differs, investigate before proceeding
@@ -336,7 +336,7 @@ _Goal: Preserve the month of scan history, daily briefs, and economic data accum
 
 #### R3.C — Verify the Application
 
-- [ ] **R3.6** Verify the migrated data through the UI
+- [x] **R3.6** Verify the migrated data through the UI
 - Start the Web app pointing at LocalDB
 - Browse History — all scan runs visible with correct dates and candidate counts
 - Browse Insights — all daily briefs visible with correct content
