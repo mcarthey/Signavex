@@ -1,0 +1,75 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Worker: Run (Console)",
+      "type": "shell",
+      "command": "dotnet run --project src/Signavex.Worker",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Worker: Publish Release",
+      "type": "shell",
+      "command": "dotnet publish src/Signavex.Worker -c Release -o C:\\Signavex\\Worker",
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Worker: Query Service Status",
+      "type": "shell",
+      "command": "sc.exe query \"Signavex Scanner\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Worker: Start Service",
+      "type": "shell",
+      "command": "sc.exe start \"Signavex Scanner\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Worker: Stop Service",
+      "type": "shell",
+      "command": "sc.exe stop \"Signavex Scanner\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Worker: Install Service (Admin)",
+      "type": "shell",
+      "command": "sc.exe create \"Signavex Scanner\" binPath=\"C:\\Signavex\\Worker\\Signavex.Worker.exe\" start=auto",
+      "problemMatcher": []
+    },
+    {
+      "label": "Web: Publish Release",
+      "type": "shell",
+      "command": "dotnet publish src/Signavex.Web -c Release -o C:\\Signavex\\Web",
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Web: Stop IIS Site",
+      "type": "shell",
+      "command": "powershell -Command \"Stop-WebSite -Name 'Signavex'\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Web: Start IIS Site",
+      "type": "shell",
+      "command": "powershell -Command \"Start-WebSite -Name 'Signavex'\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Web: Deploy (Stop → Publish → Start)",
+      "type": "shell",
+      "command": "powershell -Command \"Stop-WebSite -Name 'Signavex'; Stop-WebAppPool -Name 'Signavex'\" && dotnet publish src/Signavex.Web -c Release -o C:\\Signavex\\Web && powershell -Command \"Start-WebAppPool -Name 'Signavex'; Start-WebSite -Name 'Signavex'\"",
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Web: Setup IIS Site (Admin, one-time)",
+      "type": "shell",
+      "command": "powershell -Command \"Import-Module WebAdministration; New-WebAppPool -Name 'Signavex' -Force; Set-ItemProperty IIS:\\AppPools\\Signavex -Name managedRuntimeVersion -Value ''; New-WebSite -Name 'Signavex' -PhysicalPath 'C:\\Signavex\\Web' -Port 8080 -ApplicationPool 'Signavex' -Force\"",
+      "problemMatcher": []
+    }
+  ]
+}
