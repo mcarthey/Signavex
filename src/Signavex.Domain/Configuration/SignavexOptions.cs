@@ -20,13 +20,9 @@ public class SignavexOptions
     public List<string> Universe { get; set; } = ["SP500", "SP400"];
 
     /// <summary>
-    /// Absolute path to the shared data directory containing signavex.db.
-    /// Both Worker and Web must point to the same directory.
+    /// SQL Server connection string. Required.
+    /// LocalDB for development, Azure SQL for production.
     /// </summary>
-    public string DataDirectory { get; set; } = "";
-
-    public string DatabaseProvider { get; set; } = "Sqlite";
-
     public string ConnectionString { get; set; } = "";
 
     public bool RunBackgroundServices { get; set; } = false;

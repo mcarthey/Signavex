@@ -39,16 +39,11 @@ var signavexOptions = builder.Configuration
     .GetSection(SignavexOptions.SectionName)
     .Get<SignavexOptions>() ?? new SignavexOptions();
 
-var dataDirectory = !string.IsNullOrWhiteSpace(signavexOptions.DataDirectory)
-    ? signavexOptions.DataDirectory
-    : Path.Combine(builder.Environment.ContentRootPath, "data");
-
 // Register domain layers
 builder.Services
     .AddSignavexSignals()
     .AddSignavexEngine()
-    .AddSignavexInfrastructure(providerOptions, dataDirectory,
-        signavexOptions.DatabaseProvider, signavexOptions.ConnectionString);
+    .AddSignavexInfrastructure(providerOptions, signavexOptions.ConnectionString);
 
 // ASP.NET Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -125,32 +120,13 @@ var stripeOptions = builder.Configuration
     .Get<StripeOptions>() ?? new StripeOptions();
 StripeConfiguration.ApiKey = stripeOptions.SecretKey;
 
-// Initialize database
+// Initialize database — migrations handle all schema and seed data
 using (var scope = app.Services.CreateScope())
 {
-    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SignavexDbContext>>();
-    var dbLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseInit");
-
-    // SQLite: one-time transition from EnsureCreated to MigrateAsync (preserves data)
-    if (!string.Equals(signavexOptions.DatabaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
-    {
-        await SqliteMigrationTransition.TransitionIfNeededAsync(dataDirectory, factory, dbLogger);
-    }
-
-    await using var db = await factory.CreateDbContextAsync();
+    await using var db = await scope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<SignavexDbContext>>()
+        .CreateDbContextAsync();
     await db.Database.MigrateAsync();
-
-    if (!string.Equals(signavexOptions.DatabaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
-    {
-        await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL");
-        await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000");
-    }
-
-    var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("EconomicDataSeeder");
-    await EconomicDataSeeder.SeedAsync(factory, seedLogger);
-
-    var roleLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("RoleSeeder");
-    await RoleSeeder.SeedAsync(scope.ServiceProvider, roleLogger);
 }
 
 if (!app.Environment.IsDevelopment())

@@ -1,6 +1,5 @@
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Signavex.Domain.Configuration;
@@ -23,26 +22,13 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSignavexInfrastructure(
         this IServiceCollection services,
         DataProviderOptions providerOptions,
-        string dataDirectory = "data",
-        string databaseProvider = "Sqlite",
-        string connectionString = "")
+        string connectionString)
     {
         services.AddMemoryCache();
 
-        // Database persistence — SQLite (default/local) or SQL Server (production)
-        if (string.Equals(databaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
-        {
-            services.AddDbContextFactory<SignavexDbContext>(options =>
-                options.UseSqlServer(connectionString));
-        }
-        else
-        {
-            var dbPath = Path.Combine(dataDirectory, "signavex.db");
-            Directory.CreateDirectory(dataDirectory);
-            services.AddDbContextFactory<SignavexDbContext>(options =>
-                options.UseSqlite($"Data Source={dbPath}")
-                    .ReplaceService<IMigrationsSqlGenerator, SqlServerTypeSqliteGenerator>());
-        }
+        // Database persistence — SQL Server (LocalDB for dev, Azure SQL for production)
+        services.AddDbContextFactory<SignavexDbContext>(options =>
+            options.UseSqlServer(connectionString));
 
         services.AddSingleton<IScanStateStore, SqliteScanStateStore>();
         services.AddSingleton<IScanHistoryStore, SqliteScanHistoryStore>();
