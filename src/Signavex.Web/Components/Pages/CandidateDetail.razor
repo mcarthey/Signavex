@@ -1,5 +1,4 @@
 @page "/candidate/{Ticker}"
-@rendermode InteractiveServer
 @attribute [Authorize]
 @using Signavex.Domain.Interfaces
 @using Signavex.Domain.Models
@@ -171,13 +170,6 @@
                         Markers="_chartMarkers"
                         Annotations="_chartAnnotations" />
         }
-        else if (_chartLoading)
-        {
-            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-8 shadow-elevation-1 mb-4 flex items-center justify-center">
-                <div class="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2"></div>
-                <span class="text-sm text-on-surface-variant">Loading price data...</span>
-            </div>
-        }
 
         @* Score History *@
         @if (_tickerHistory is not null && _tickerHistory.Appearances.Count > 1)
@@ -252,7 +244,6 @@
     private StockCandidate? _candidate;
     private TickerHistory? _tickerHistory;
     private bool _loading = true;
-    private bool _chartLoading;
     private bool _isPro;
     private bool _isInFreeLimit;
     private double _maxHistoryScore = 1.0;
@@ -334,21 +325,18 @@
             // History unavailable — no chart shown
         }
 
-        _loading = false;
-
-        // Load chart + profile data in the background (don't block the page)
+        // Load chart + profile data inline (static SSR — must be ready before render)
         if (_candidate is not null && (_isPro || _isInFreeLimit))
         {
-            _ = LoadChartDataAsync();
-            _ = LoadProfileAsync();
+            await LoadChartDataAsync();
+            await LoadProfileAsync();
         }
+
+        _loading = false;
     }
 
     private async Task LoadChartDataAsync()
     {
-        _chartLoading = true;
-        StateHasChanged();
-
         try
         {
             // Fetch 90 days of OHLCV (gives ~60 trading days for good MA coverage)
@@ -421,11 +409,6 @@
         {
             // OHLCV load failed — no chart shown
         }
-        finally
-        {
-            _chartLoading = false;
-            await InvokeAsync(StateHasChanged);
-        }
     }
 
     private static List<PriceChart.ChartPoint> ComputeSma(IReadOnlyList<OhlcvRecord> data, int period)
@@ -481,7 +464,6 @@
         try
         {
             _profile = await MarketData.GetTickerProfileAsync(Ticker);
-            await InvokeAsync(StateHasChanged);
         }
         catch
         {

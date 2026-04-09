@@ -239,32 +239,32 @@ The current migration chain:
 
 _Goal: Pages render as standard HTML via static SSR. No WebSocket connection needed for normal browsing. Interactive elements use client-side JavaScript._
 
-- [ ] **R2.1** Remove `@rendermode InteractiveServer` from read-only pages
+- [x] **R2.1** Remove `@rendermode InteractiveServer` from read-only pages
 - **Settings.razor** — no interactive elements at all
 - **IndicatorDetail.razor** — no interactive elements at all
 - These pages will render as static SSR, load instantly, work identically
 - **Verify:** Pages still render correctly, data still loads
 
-- [ ] **R2.2** Convert History page to static SSR + forms
+- [x] **R2.2** Convert History page to static SSR + forms
 - Remove `@rendermode InteractiveServer`
 - Ticker search: convert `@bind` + `@onclick` to a standard `<form method="get">` with query string
 - Expandable scan rows: convert `@onclick="ToggleScan"` to `<details>` HTML element or vanilla JS toggle
 - **Verify:** Search works, rows expand, no SignalR circuit
 
-- [ ] **R2.3** Convert Insights page to static SSR + form
+- [x] **R2.3** Convert Insights page to static SSR + form
 - Remove `@rendermode InteractiveServer`
 - "Generate Now" button: convert to `<form method="post">` that enqueues the command
 - Remove 5-second polling timer — user can refresh to see if brief is ready
 - **Verify:** Brief displays, generate button works, page loads fast
 
-- [ ] **R2.4** Convert Economy page to static SSR + form
+- [x] **R2.4** Convert Economy page to static SSR + form
 - Remove `@rendermode InteractiveServer`
 - "Sync Data" button: convert to `<form method="post">`
 - Remove 3-second polling timer
 - Indicator card links: already standard `<a>` tags, no change needed
 - **Verify:** All indicators display, sync button works
 
-- [ ] **R2.5** Convert CandidateDetail page to static SSR + JS
+- [x] **R2.5** Convert CandidateDetail page to static SSR + JS
 - Remove `@rendermode InteractiveServer`
 - Signal expand/collapse: already using `@onclick` to toggle state — convert to vanilla JS `<details>` or `onclick` attribute
 - Chart: already uses JS interop (`price-chart.js`) — load chart data via a `<script>` block or fetch API instead of Blazor interop
@@ -272,7 +272,7 @@ _Goal: Pages render as standard HTML via static SSR. No WebSocket connection nee
 - Market signal expand: same pattern as stock signals
 - **Verify:** Chart renders, signals expand, profile loads
 
-- [ ] **R2.6** Simplify Dashboard
+- [x] **R2.6** Simplify Dashboard
 - Remove polling timer (3-second interval)
 - "Run Scan" button: convert to `<form method="post">`
 - Filter chips and sort: convert to `<form method="get">` with query parameters
@@ -280,13 +280,13 @@ _Goal: Pages render as standard HTML via static SSR. No WebSocket connection nee
 - Scan status: show last-known state from the database, not real-time polling. Add a small "Last updated: X minutes ago" timestamp.
 - **Verify:** Dashboard loads with latest data, filters work, scan button enqueues command
 
-- [ ] **R2.7** Simplify Backtest
+- [x] **R2.7** Simplify Backtest
 - Date picker + run: convert to `<form method="post">`
 - This is a long-running operation — after form POST, redirect to a results page or show "Backtest running, refresh to check"
 - CSV export: keep as JS
 - **Verify:** Backtest runs, results display
 
-- [ ] **R2.8** Remove Blazor Server infrastructure (if no pages remain interactive)
+- [x] **R2.8** Remove Blazor Server infrastructure (if no pages remain interactive)
 - If all pages are static SSR, remove `autostart="false"` and the Blazor reconnection JS from `App.razor`
 - Consider whether `blazor.web.js` is still needed (it handles static SSR enhanced navigation)
 - **Verify:** All pages still work, no WebSocket connections in browser dev tools

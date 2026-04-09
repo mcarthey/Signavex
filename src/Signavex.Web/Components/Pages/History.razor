@@ -4,7 +4,7 @@
 @using Signavex.Domain.Models
 @inject IScanHistoryStore HistoryStore
 @inject AuthenticationStateProvider AuthStateProvider
-@rendermode InteractiveServer
+@inject NavigationManager Nav
 
 <PageTitle>Scan History — Signavex</PageTitle>
 
@@ -50,21 +50,24 @@
             </div>
         }
 
-        @* Ticker Search *@
+        @* Ticker Search — standard form GET *@
         <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
             <h2 class="text-sm font-semibold text-on-surface mb-3">Ticker Search</h2>
-            <div class="flex items-center gap-2 mb-3">
+            <form method="get" action="/history" class="flex items-center gap-2 mb-3">
                 <input type="text"
-                       @bind="_tickerQuery"
-                       @bind:event="oninput"
-                       @onkeydown="OnTickerKeyDown"
+                       name="ticker"
+                       value="@TickerQuery"
                        placeholder="Enter ticker (e.g. AAPL)"
                        class="flex-1 rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/40" />
-                <button @onclick="SearchTicker"
+                @if (!string.IsNullOrEmpty(ExpandedScanId))
+                {
+                    <input type="hidden" name="scan" value="@ExpandedScanId" />
+                }
+                <button type="submit"
                         class="rounded-[var(--radius-sm)] bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:brightness-110">
                     Search
                 </button>
-            </div>
+            </form>
 
             @if (_tickerHistory is not null)
             {
@@ -123,7 +126,7 @@
             }
             else if (_tickerSearched)
             {
-                <p class="text-sm text-on-surface-variant mt-2">No history found for "@_tickerQuery".</p>
+                <p class="text-sm text-on-surface-variant mt-2">No history found for "@TickerQuery".</p>
             }
         </div>
 
@@ -151,9 +154,12 @@
                         <tbody>
                             @foreach (var scan in _scans)
                             {
-                                var isExpanded = _expandedScanId == scan.ScanId;
+                                var isExpanded = ExpandedScanId == scan.ScanId;
+                                var toggleHref = isExpanded
+                                    ? BuildHref(null)
+                                    : BuildHref(scan.ScanId);
                                 <tr class="border-b border-outline-variant/50 cursor-pointer hover:bg-surface-container/50 transition-colors"
-                                    @onclick="() => ToggleScan(scan.ScanId)">
+                                    onclick="window.location.href='@toggleHref'">
                                     <td class="py-2 pr-4 text-on-surface">@scan.CompletedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
                                     <td class="py-2 pr-4">
                                         <span class="@MultiplierColor(scan.MarketMultiplier) rounded-[var(--radius-xs)] px-2 py-0.5 text-xs font-medium">
@@ -248,54 +254,51 @@
 <Disclaimer />
 
 @code {
+    [SupplyParameterFromQuery(Name = "ticker")]
+    public string? TickerQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "scan")]
+    public string? ExpandedScanId { get; set; }
+
     private IReadOnlyList<ScanSummary> _scans = Array.Empty<ScanSummary>();
     private IReadOnlyList<(DateTime Date, double Multiplier)> _trend = Array.Empty<(DateTime, double)>();
-    private string _tickerQuery = "";
     private TickerHistory? _tickerHistory;
     private bool _tickerSearched;
-    private string? _expandedScanId;
     private CompletedScanResult? _expandedResult;
     private bool _isPro;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _isPro = authState.User.IsInRole("Pro");
 
-        if (_isPro)
+        if (!_isPro)
+            return;
+
+        _scans = await HistoryStore.GetRecentScansAsync();
+        _trend = await HistoryStore.GetMarketMultiplierTrendAsync();
+
+        if (!string.IsNullOrWhiteSpace(TickerQuery))
         {
-            _scans = await HistoryStore.GetRecentScansAsync();
-            _trend = await HistoryStore.GetMarketMultiplierTrendAsync();
+            var query = TickerQuery.Trim().ToUpperInvariant();
+            _tickerHistory = await HistoryStore.GetTickerHistoryAsync(query);
+            _tickerSearched = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ExpandedScanId))
+        {
+            _expandedResult = await HistoryStore.GetScanByIdAsync(ExpandedScanId);
         }
     }
 
-    private async Task SearchTicker()
+    private string BuildHref(string? scanId)
     {
-        var query = _tickerQuery.Trim().ToUpperInvariant();
-        if (string.IsNullOrEmpty(query))
-            return;
-
-        _tickerHistory = await HistoryStore.GetTickerHistoryAsync(query);
-        _tickerSearched = true;
-    }
-
-    private async Task OnTickerKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-            await SearchTicker();
-    }
-
-    private async Task ToggleScan(string scanId)
-    {
-        if (_expandedScanId == scanId)
-        {
-            _expandedScanId = null;
-            _expandedResult = null;
-            return;
-        }
-
-        _expandedScanId = scanId;
-        _expandedResult = await HistoryStore.GetScanByIdAsync(scanId);
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(TickerQuery))
+            parts.Add($"ticker={Uri.EscapeDataString(TickerQuery)}");
+        if (!string.IsNullOrEmpty(scanId))
+            parts.Add($"scan={Uri.EscapeDataString(scanId)}");
+        return parts.Count > 0 ? "/history?" + string.Join("&", parts) : "/history";
     }
 
     private static string MultiplierColor(double multiplier) => multiplier switch

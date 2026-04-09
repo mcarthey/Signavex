@@ -1,6 +1,5 @@
 @using Signavex.Domain.Models
-@inject IJSRuntime JS
-@implements IAsyncDisposable
+@using System.Text.Json
 
 <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest shadow-elevation-1 mb-4 overflow-hidden">
     @* Header with toggle *@
@@ -18,15 +17,15 @@
                 }
             }
         </div>
-        <div class="flex items-center gap-1 rounded-[var(--radius-sm)] bg-surface-container p-0.5">
+        <div class="flex items-center gap-1 rounded-[var(--radius-sm)] bg-surface-container p-0.5" id="@_containerId-toggle">
             <button type="button"
-                    class="rounded-[var(--radius-xs)] px-3 py-1 text-xs font-medium transition-colors @(_mode == "candlestick" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface")"
-                    @onclick='() => SwitchMode("candlestick")'>
+                    data-mode="candlestick"
+                    class="chart-mode-btn rounded-[var(--radius-xs)] px-3 py-1 text-xs font-medium transition-colors bg-primary text-on-primary">
                 Candlestick
             </button>
             <button type="button"
-                    class="rounded-[var(--radius-xs)] px-3 py-1 text-xs font-medium transition-colors @(_mode == "line" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface")"
-                    @onclick='() => SwitchMode("line")'>
+                    data-mode="line"
+                    class="chart-mode-btn rounded-[var(--radius-xs)] px-3 py-1 text-xs font-medium transition-colors text-on-surface-variant hover:text-on-surface">
                 Line
             </button>
         </div>
@@ -63,25 +62,56 @@
     @* Chart container *@
     <div id="@_containerId" style="width:100%; height:@(Height)px;"></div>
 
-    @* Candlestick reading guide (only in candlestick mode) *@
-    @if (_mode == "candlestick")
-    {
-        <div class="px-4 py-2 border-t border-outline-variant bg-surface-container/30">
-            <details class="text-[10px] text-on-surface-variant">
-                <summary class="cursor-pointer font-medium hover:text-on-surface transition-colors select-none">
-                    How to read candlesticks
-                </summary>
-                <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 leading-relaxed">
-                    <span><strong class="text-success">Green candle</strong> = price went up (close &gt; open)</span>
-                    <span><strong class="text-error">Red candle</strong> = price went down (close &lt; open)</span>
-                    <span><strong>Body</strong> = range between open and close prices</span>
-                    <span><strong>Wicks</strong> = intraday high and low beyond open/close</span>
-                    <span><strong>Tall body</strong> = strong directional move</span>
-                    <span><strong>Long wicks</strong> = price was rejected at that level</span>
-                </div>
-            </details>
-        </div>
-    }
+    @* Embedded data + initialization script (no Blazor JS interop needed) *@
+    <script>
+        (function() {
+            var data = @((MarkupString)_jsonData);
+            var containerId = '@_containerId';
+            function init() {
+                if (typeof window.priceChart === 'undefined' || typeof LightweightCharts === 'undefined') {
+                    setTimeout(init, 50);
+                    return;
+                }
+                window.priceChart.create(containerId, data, { height: @Height, mode: 'candlestick' });
+                var toggle = document.getElementById(containerId + '-toggle');
+                if (toggle) {
+                    toggle.querySelectorAll('.chart-mode-btn').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            var mode = btn.getAttribute('data-mode');
+                            window.priceChart.switchMode(containerId, mode);
+                            toggle.querySelectorAll('.chart-mode-btn').forEach(function(b) {
+                                if (b.getAttribute('data-mode') === mode) {
+                                    b.classList.remove('text-on-surface-variant', 'hover:text-on-surface');
+                                    b.classList.add('bg-primary', 'text-on-primary');
+                                } else {
+                                    b.classList.remove('bg-primary', 'text-on-primary');
+                                    b.classList.add('text-on-surface-variant', 'hover:text-on-surface');
+                                }
+                            });
+                        });
+                    });
+                }
+            }
+            init();
+        })();
+    </script>
+
+    @* Candlestick reading guide *@
+    <div class="px-4 py-2 border-t border-outline-variant bg-surface-container/30">
+        <details class="text-[10px] text-on-surface-variant">
+            <summary class="cursor-pointer font-medium hover:text-on-surface transition-colors select-none">
+                How to read candlesticks
+            </summary>
+            <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 leading-relaxed">
+                <span><strong class="text-success">Green candle</strong> = price went up (close &gt; open)</span>
+                <span><strong class="text-error">Red candle</strong> = price went down (close &lt; open)</span>
+                <span><strong>Body</strong> = range between open and close prices</span>
+                <span><strong>Wicks</strong> = intraday high and low beyond open/close</span>
+                <span><strong>Tall body</strong> = strong directional move</span>
+                <span><strong>Long wicks</strong> = price was rejected at that level</span>
+            </div>
+        </details>
+    </div>
 </div>
 
 @code {
@@ -110,31 +140,19 @@
     public int Height { get; set; } = 400;
 
     private string _containerId = $"price-chart-{Guid.NewGuid():N}";
-    private string _mode = "candlestick";
-    private bool _rendered;
+    private string _jsonData = "{}";
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnParametersSet()
     {
-        if (firstRender && OhlcvData is not null && OhlcvData.Count > 0)
+        if (OhlcvData is null || OhlcvData.Count == 0)
         {
-            await RenderChart();
-            _rendered = true;
+            _jsonData = "{\"ohlcv\":[]}";
+            return;
         }
-    }
 
-    protected override async Task OnParametersSetAsync()
-    {
-        if (_rendered && OhlcvData is not null && OhlcvData.Count > 0)
-        {
-            await RenderChart();
-        }
-    }
-
-    private async Task RenderChart()
-    {
         var data = new
         {
-            ohlcv = OhlcvData!.Select(d => new
+            ohlcv = OhlcvData.Select(d => new
             {
                 date = d.Date.ToString("yyyy-MM-dd"),
                 open = (double)d.Open,
@@ -162,26 +180,7 @@
             }).ToArray(),
         };
 
-        var options = new { height = Height, mode = _mode };
-        await JS.InvokeVoidAsync("priceChart.create", _containerId, data, options);
-    }
-
-    private async Task SwitchMode(string mode)
-    {
-        _mode = mode;
-        await JS.InvokeVoidAsync("priceChart.switchMode", _containerId, mode);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("priceChart.destroy", _containerId);
-        }
-        catch
-        {
-            // Circuit may already be disposed
-        }
+        _jsonData = JsonSerializer.Serialize(data);
     }
 
     public record ChartPoint(string Date, double Value);

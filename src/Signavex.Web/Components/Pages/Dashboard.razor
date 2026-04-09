@@ -10,10 +10,7 @@
 @inject ScanDashboardService DashboardService
 @inject ApiKeyValidationService ApiKeyService
 @inject IOptions<SignavexOptions> Options
-@inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthStateProvider
-@rendermode InteractiveServer
-@implements IDisposable
 
 <PageTitle>Signavex Dashboard</PageTitle>
 
@@ -32,39 +29,48 @@
                     }
                 </p>
             }
+            @if (_scanStatus?.IsScanning == true)
+            {
+                <p class="text-xs text-primary mt-0.5">
+                    Scan in progress · @_scanStatus.Evaluated / @_scanStatus.Total · refresh to see updates
+                </p>
+            }
         </div>
         <div class="flex items-center gap-2">
-            @if (DisplayResults.Any())
+            @if (_filteredResults.Count > 0)
             {
-                <button class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-outline px-3 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container"
-                        @onclick="ExportCsv">
+                <a href="/dashboard/export.csv"
+                   class="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-outline px-3 py-2 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container no-underline">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                     </svg>
                     CSV
-                </button>
+                </a>
             }
-            <button class="inline-flex items-center gap-2 rounded-[var(--radius-xl)] bg-primary px-5 py-2.5 text-sm font-medium text-on-primary shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    @onclick="RunScan" disabled="@(_scanStatus?.IsScanning == true || _scanRequested)">
-                @if (_scanStatus?.IsScanning == true)
-                {
-                    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Scanning...</span>
-                }
-                else if (_scanRequested)
-                {
-                    <span>Scan Requested</span>
-                }
-                else
-                {
-                    <span>Run Scan</span>
-                }
-            </button>
+            <form method="post" action="/dashboard/scan" data-enhance>
+                <AntiforgeryToken />
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-[var(--radius-xl)] bg-primary px-5 py-2.5 text-sm font-medium text-on-primary shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled="@(_scanStatus?.IsScanning == true)">
+                    @if (_scanStatus?.IsScanning == true)
+                    {
+                        <span>Scanning...</span>
+                    }
+                    else
+                    {
+                        <span>Run Scan</span>
+                    }
+                </button>
+            </form>
         </div>
     </div>
+
+    @if (ScanRequested)
+    {
+        <div class="rounded-[var(--radius-md)] border border-primary/30 bg-primary/5 p-4 mb-4 text-sm text-on-surface">
+            Scan requested. The Worker will start within a minute. Refresh the page to see progress.
+        </div>
+    }
 
     @* API Key Warning *@
     @if (!ApiKeyService.HasAllKeys)
@@ -85,49 +91,11 @@
         </div>
     }
 
-    @* Scan Progress *@
-    @if (_scanStatus?.IsScanning == true)
-    {
-        var s = _scanStatus;
-        <div class="mb-4 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
-            <div class="flex items-center justify-between text-sm mb-2">
-                <span class="font-medium text-on-surface">
-                    Evaluating @s.CurrentTicker
-                </span>
-                <span class="text-on-surface-variant">
-                    @s.Evaluated / @s.Total
-                    @if (EstimatedTimeRemaining(s) is { } eta)
-                    {
-                        <span> · ~@FormatEta(eta) remaining</span>
-                    }
-                </span>
-            </div>
-            <div class="h-2 w-full rounded-[var(--radius-full)] bg-surface-container-high overflow-hidden">
-                <div class="h-full rounded-[var(--radius-full)] bg-primary transition-all duration-300 animate-pulse-bar"
-                     style="width: @(s.Total > 0 ? (s.Evaluated * 100 / s.Total) : 0)%"></div>
-            </div>
-            <div class="flex items-center justify-between mt-1.5">
-                @if (s.ErrorCount > 0)
-                {
-                    <p class="text-xs text-warning">@s.ErrorCount error(s) so far</p>
-                }
-                else
-                {
-                    <span></span>
-                }
-                @if (s.CandidatesFound > 0)
-                {
-                    <p class="text-xs text-success font-medium">@s.CandidatesFound candidate(s) found</p>
-                }
-            </div>
-        </div>
-    }
-
     @* Market Context *@
     <MarketContextBar Context="_marketContext" />
 
     @* Results *@
-    @if (!DisplayResults.Any() && _scanStatus?.IsScanning != true)
+    @if (_filteredResults.Count == 0)
     {
         @if (_lastScanTime.HasValue && _marketContext is not null)
         {
@@ -153,29 +121,6 @@
                     </div>
                 </div>
 
-                @* Market signals breakdown *@
-                @if (_marketContext.MarketSignals.Any())
-                {
-                    <h4 class="text-sm font-medium text-on-surface mb-2">Market Signals</h4>
-                    <div class="grid gap-2 sm:grid-cols-2 mb-4">
-                        @foreach (var signal in _marketContext.MarketSignals.OrderByDescending(s => Math.Abs(s.Score * s.Weight)))
-                        {
-                            <div class="rounded-[var(--radius-sm)] bg-surface-container px-3 py-2">
-                                <div class="flex items-center justify-between mb-0.5">
-                                    <span class="text-sm font-medium text-on-surface">@FormatSignalName(signal.SignalName)</span>
-                                    <span class="text-sm font-semibold @(signal.Score >= 0 ? "text-success" : "text-error")">
-                                        @signal.Score.ToString("+0.00;-0.00")
-                                    </span>
-                                </div>
-                                @if (!string.IsNullOrEmpty(signal.Reason))
-                                {
-                                    <p class="text-xs text-on-surface-variant">@signal.Reason</p>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-
                 @* Educational explanation *@
                 <div class="rounded-[var(--radius-sm)] border border-outline-variant/50 bg-surface-container/50 p-3">
                     <p class="text-sm font-medium text-on-surface mb-1">Why no candidates?</p>
@@ -187,7 +132,6 @@
         }
         else
         {
-            @* No scan has ever run — generic empty state *@
             <div class="flex flex-col items-center justify-center py-16 text-center">
                 <div class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-surface-container mb-4">
                     <svg class="h-8 w-8 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -201,33 +145,25 @@
             </div>
         }
     }
-    else if (DisplayResults.Any())
+    else
     {
-        @if (_scanStatus?.IsScanning == true)
-        {
-            <h3 class="text-sm font-semibold text-on-surface-variant mb-3 flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full bg-success animate-pulse"></span>
-                Candidates Found So Far (@DisplayResults.Count())
-            </h3>
-        }
-
-        @* Filter chips *@
+        @* Filter chips — links with query strings *@
         <div class="flex flex-wrap items-center gap-2 mb-4">
-            <button class="@ChipCss(_tierFilter == "")" @onclick='() => _tierFilter = ""'>All Tiers</button>
-            <button class="@ChipCss(_tierFilter == "SP500")" @onclick='() => _tierFilter = "SP500"'>S&P 500</button>
-            <button class="@ChipCss(_tierFilter == "SP400")" @onclick='() => _tierFilter = "SP400"'>S&P 400</button>
-            <button class="@ChipCss(_tierFilter == "SP600")" @onclick='() => _tierFilter = "SP600"'>S&P 600</button>
+            <a href="@BuildHref(tier: "")" class="@ChipCss(string.IsNullOrEmpty(Tier))">All Tiers</a>
+            <a href="@BuildHref(tier: "SP500")" class="@ChipCss(Tier == "SP500")">S&amp;P 500</a>
+            <a href="@BuildHref(tier: "SP400")" class="@ChipCss(Tier == "SP400")">S&amp;P 400</a>
+            <a href="@BuildHref(tier: "SP600")" class="@ChipCss(Tier == "SP600")">S&amp;P 600</a>
 
             <span class="mx-1 h-4 w-px bg-outline-variant"></span>
 
-            <button class="@ChipCss(_sortBy == "score")" @onclick='() => _sortBy = "score"'>By Score</button>
-            <button class="@ChipCss(_sortBy == "ticker")" @onclick='() => _sortBy = "ticker"'>A-Z</button>
-            <button class="@ChipCss(_sortBy == "raw")" @onclick='() => _sortBy = "raw"'>Raw Score</button>
+            <a href="@BuildHref(sort: "score")" class="@ChipCss(string.IsNullOrEmpty(Sort) || Sort == "score")">By Score</a>
+            <a href="@BuildHref(sort: "ticker")" class="@ChipCss(Sort == "ticker")">A-Z</a>
+            <a href="@BuildHref(sort: "raw")" class="@ChipCss(Sort == "raw")">Raw Score</a>
         </div>
 
         @* Candidate cards *@
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            @foreach (var candidate in FilteredResults)
+            @foreach (var candidate in _filteredResults)
             {
                 <a href="/candidate/@candidate.Ticker"
                    class="group rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1 transition-all duration-150 hover:shadow-elevation-2 hover:border-primary/30 no-underline">
@@ -248,13 +184,13 @@
         </div>
 
         <p class="mt-3 text-xs text-on-surface-variant">
-            @FilteredResults.Count() of @DisplayResults.Count() candidates shown
+            @_filteredResults.Count of @_displayCount candidates shown
         </p>
 
-        @if (!_isPro && DisplayResults.Count() > 5)
+        @if (!_isPro && _displayCount > 5)
         {
             <div class="mt-4">
-                <UpgradePrompt Title="@($"See All {DisplayResults.Count()} Candidates")"
+                <UpgradePrompt Title="@($"See All {_displayCount} Candidates")"
                                Description="Free accounts see the top 5 candidates. Upgrade to Pro for the complete list." />
             </div>
         }
@@ -264,144 +200,88 @@
 <Disclaimer />
 
 @code {
-    private string _tierFilter = "";
-    private string _sortBy = "score";
+    [SupplyParameterFromQuery(Name = "tier")]
+    public string? Tier { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sort")]
+    public string? Sort { get; set; }
+
+    [SupplyParameterFromQuery(Name = "requested")]
+    public bool ScanRequested { get; set; }
 
     private ScanStatus? _scanStatus;
     private MarketContext? _marketContext;
-    private IReadOnlyList<StockCandidate> _latestResults = Array.Empty<StockCandidate>();
-    private IReadOnlyList<StockCandidate> _liveCandidates = Array.Empty<StockCandidate>();
+    private List<StockCandidate> _filteredResults = new();
+    private int _displayCount;
     private DateTime? _lastScanTime;
     private int _lastScanErrors;
     private int _totalEvaluated;
-    private bool _scanRequested;
     private bool _isPro;
 
-    private Timer? _pollTimer;
-
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _isPro = authState.User.IsInRole("Pro");
 
-        await LoadLatestResults();
-        await PollStatus();
-
-        _pollTimer = new Timer(async _ =>
-        {
-            try
-            {
-                await PollStatus();
-                await InvokeAsync(StateHasChanged);
-            }
-            catch
-            {
-                // Timer callback — swallow to avoid crashing the circuit
-            }
-        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
-    }
-
-    private async Task LoadLatestResults()
-    {
+        // Load latest result
         try
         {
             var result = await DashboardService.GetLatestResultAsync();
             if (result is not null)
             {
-                _latestResults = result.Candidates;
                 _marketContext = result.MarketContext;
                 _lastScanTime = result.CompletedAtUtc;
                 _lastScanErrors = result.ErrorCount;
                 _totalEvaluated = result.TotalEvaluated;
+
+                var threshold = Options.Value.SurfacingThreshold;
+                IEnumerable<StockCandidate> filtered = result.Candidates
+                    .Where(c => c.FinalScore >= threshold);
+
+                if (!string.IsNullOrEmpty(Tier) && Enum.TryParse<MarketTier>(Tier, out var tier))
+                    filtered = filtered.Where(c => c.Tier == tier);
+
+                filtered = Sort switch
+                {
+                    "ticker" => filtered.OrderBy(c => c.Ticker),
+                    "raw" => filtered.OrderByDescending(c => c.RawScore),
+                    _ => filtered.OrderByDescending(c => c.FinalScore)
+                };
+
+                _displayCount = filtered.Count();
+
+                if (!_isPro)
+                    filtered = filtered.Take(5);
+
+                _filteredResults = filtered.ToList();
             }
         }
         catch
         {
             // Persist layer unavailable
         }
-    }
 
-    private async Task PollStatus()
-    {
+        // Get scan status (one-shot, no polling)
         try
         {
             _scanStatus = await DashboardService.GetScanStatusAsync();
-
-            if (_scanStatus.IsScanning)
-            {
-                _scanRequested = false;
-                _liveCandidates = await DashboardService.GetLiveCandidatesAsync();
-                _marketContext = await DashboardService.GetMarketContextAsync();
-            }
-            else
-            {
-                // If scan just completed, reload the latest results
-                if (_liveCandidates.Count > 0)
-                {
-                    await LoadLatestResults();
-                    _liveCandidates = Array.Empty<StockCandidate>();
-                }
-            }
         }
         catch
         {
-            // Poll failure — skip this cycle
+            // Status unavailable
         }
     }
 
-    private IEnumerable<StockCandidate> DisplayResults
+    private string BuildHref(string? tier = null, string? sort = null)
     {
-        get
-        {
-            var threshold = Options.Value.SurfacingThreshold;
-            IEnumerable<StockCandidate> results;
-
-            if (_scanStatus?.IsScanning == true && _liveCandidates.Count > 0)
-                results = _liveCandidates;
-            else
-                results = _latestResults;
-
-            return results.Where(c => c.FinalScore >= threshold);
-        }
-    }
-
-    private IEnumerable<StockCandidate> FilteredResults
-    {
-        get
-        {
-            var results = DisplayResults;
-
-            if (!string.IsNullOrEmpty(_tierFilter) && Enum.TryParse<MarketTier>(_tierFilter, out var tier))
-                results = results.Where(c => c.Tier == tier);
-
-            results = _sortBy switch
-            {
-                "ticker" => results.OrderBy(c => c.Ticker),
-                "raw" => results.OrderByDescending(c => c.RawScore),
-                _ => results.OrderByDescending(c => c.FinalScore)
-            };
-
-            if (!_isPro)
-                results = results.Take(5);
-
-            return results;
-        }
-    }
-
-    private async Task RunScan()
-    {
-        _scanRequested = true;
-        await DashboardService.RequestScanAsync();
-    }
-
-    private async Task ExportCsv()
-    {
-        if (_latestResults.Count == 0)
-            return;
-
-        var csv = CsvExportHelper.GenerateCsv(_latestResults);
-        var fileName = $"signavex-scan-{DateTime.UtcNow:yyyy-MM-dd}.csv";
-        await JS.InvokeVoidAsync("downloadFile", fileName, csv);
+        var t = tier ?? Tier;
+        var s = sort ?? Sort;
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(t))
+            parts.Add($"tier={Uri.EscapeDataString(t)}");
+        if (!string.IsNullOrEmpty(s))
+            parts.Add($"sort={Uri.EscapeDataString(s)}");
+        return parts.Count > 0 ? "/dashboard?" + string.Join("&", parts) : "/dashboard";
     }
 
     private static string RelativeTime(DateTime utcTime)
@@ -413,27 +293,9 @@
         return $"{(int)elapsed.TotalDays}d ago";
     }
 
-    private static TimeSpan? EstimatedTimeRemaining(ScanStatus s)
-    {
-        if (s.StartedAtUtc is null || s.Evaluated <= 0 || s.Total <= 0)
-            return null;
-
-        var elapsed = DateTime.UtcNow - s.StartedAtUtc.Value;
-        var avgPerStock = elapsed / s.Evaluated;
-        var remaining = s.Total - s.Evaluated;
-        return avgPerStock * remaining;
-    }
-
-    private static string FormatEta(TimeSpan eta)
-    {
-        if (eta.TotalMinutes < 1) return "<1m";
-        if (eta.TotalHours < 1) return $"{(int)eta.TotalMinutes}m";
-        return $"{(int)eta.TotalHours}h {eta.Minutes}m";
-    }
-
     private static string ChipCss(bool active) => active
-        ? "rounded-[var(--radius-sm)] bg-primary text-on-primary px-3 py-1.5 text-xs font-medium transition-colors"
-        : "rounded-[var(--radius-sm)] bg-surface-container text-on-surface-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container-high";
+        ? "rounded-[var(--radius-sm)] bg-primary text-on-primary px-3 py-1.5 text-xs font-medium transition-colors no-underline"
+        : "rounded-[var(--radius-sm)] bg-surface-container text-on-surface-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container-high no-underline";
 
     private string MarketExplanation()
     {
@@ -461,23 +323,5 @@
         return $"Market conditions are neutral to favorable (multiplier {mult:F2}x), " +
                $"yet no stocks reached the {threshold:F2} surfacing threshold. " +
                "This can happen when individual stock signals (volume, trend, analyst ratings) are mixed or weak across the board.";
-    }
-
-    private static string FormatSignalName(string name)
-    {
-        // "MarketTrend" → "Market Trend", "VixLevel" → "Vix Level"
-        var sb = new System.Text.StringBuilder(name.Length + 4);
-        for (int i = 0; i < name.Length; i++)
-        {
-            if (i > 0 && char.IsUpper(name[i]) && !char.IsUpper(name[i - 1]))
-                sb.Append(' ');
-            sb.Append(name[i]);
-        }
-        return sb.ToString();
-    }
-
-    public void Dispose()
-    {
-        _pollTimer?.Dispose();
     }
 }
