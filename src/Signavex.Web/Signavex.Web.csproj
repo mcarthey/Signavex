@@ -5,10 +5,6 @@
     <ProjectReference Include="..\Signavex.Engine\Signavex.Engine.csproj" />
     <ProjectReference Include="..\Signavex.Infrastructure\Signavex.Infrastructure.csproj" />
     <ProjectReference Include="..\Signavex.Signals\Signavex.Signals.csproj" />
-    <ProjectReference Include="..\Signavex.Worker\Signavex.Worker.csproj">
-      <ExcludeAssets>contentfiles</ExcludeAssets>
-      <PrivateAssets>contentfiles</PrivateAssets>
-    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>

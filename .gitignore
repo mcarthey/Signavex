@@ -431,3 +431,7 @@ coverage-report/
 # Environment-specific settings (contain API keys)
 **/appsettings.Development.json
 **/appsettings.Production.json
+
+# SQLite backups (kept locally during R3 transition, never committed)
+tools/signavex-sqlite-backup*.db
+tools/signavex-sqlite-backup*.db-*
