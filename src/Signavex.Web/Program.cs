@@ -98,6 +98,9 @@ builder.Services.AddRateLimiter(options =>
 
 // Blazor — Static SSR only, no interactive server mode (no SignalR circuit)
 builder.Services.AddRazorComponents();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider,
+    Microsoft.AspNetCore.Components.Server.ServerAuthenticationStateProvider>();
+builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
 
