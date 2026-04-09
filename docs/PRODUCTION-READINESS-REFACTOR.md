@@ -166,9 +166,28 @@ The current migration chain:
 - `Down()` removes the seeded rows
 - **Files:** New migration, then delete `EconomicDataSeeder.cs`
 
-#### R1.C — Clean Up Program.cs Startup
+#### R1.C — Clean Up Startup and Configuration
 
-**R1.6** Remove all conditional startup code from `Web/Program.cs`
+**R1.6** Fix Worker appsettings — track the base config, secrets in environment files only
+- The Worker's `appsettings.json` is currently gitignored AND contains real API keys
+- Create a clean `Worker/appsettings.json` with the same placeholder pattern as Web:
+  - Empty API key values
+  - Full structure (Signavex options, DataProviders, Anthropic, SignalWeights, MarketSignalWeights)
+  - No secrets
+- Remove `src/Signavex.Worker/appsettings.json` from `.gitignore` so it's tracked
+- Move real keys to `Worker/appsettings.Development.json` (already gitignored)
+- Ensure `Worker/appsettings.Production.json` has production keys (already gitignored)
+- **Both projects should follow the same pattern: tracked base config with structure, gitignored environment files with secrets**
+- **Files:** `Worker/appsettings.json`, `.gitignore`
+
+**R1.7** Align config structure between Web and Worker
+- Both `appsettings.json` files should have identical structure for shared settings
+- The `ConnectionString` should be empty in both base configs — populated in environment files
+- SignalWeights, MarketSignalWeights, Universe should be identical in both
+- Any setting that differs between Web and Worker should be documented with a comment
+- **Files:** `Web/appsettings.json`, `Worker/appsettings.json`
+
+**R1.8** Remove all conditional startup code from `Web/Program.cs`
 - Remove `EconomicDataSeeder.SeedAsync()` call
 - Remove `RoleSeeder.SeedAsync()` call
 - Remove `SqliteMigrationTransition.TransitionIfNeededAsync()` call
@@ -176,18 +195,18 @@ The current migration chain:
 - What remains: `db.Database.MigrateAsync()` — and nothing else
 - **Files:** `Web/Program.cs`
 
-**R1.7** Apply the same cleanup to `Worker/Program.cs`
-- Same removals as R1.6 (minus RoleSeeder which was Web-only)
+**R1.9** Apply the same cleanup to `Worker/Program.cs`
+- Same removals as R1.8 (minus RoleSeeder which was Web-only)
 - **Files:** `Worker/Program.cs`
 
-**R1.8** Remove SQLite provider entirely
+**R1.10** Remove SQLite provider entirely
 - Remove the SQLite branch from `ServiceCollectionExtensions.cs` — only the SQL Server path remains
 - Remove `DatabaseProvider` config option (it's always SQL Server now)
 - Remove `DataDirectory` config option (no more SQLite file path)
 - Simplify `AddSignavexInfrastructure()` to just take a connection string
 - **Files:** `ServiceCollectionExtensions.cs`, `SignavexOptions.cs`
 
-**R1.9** Delete dead code
+**R1.11** Delete dead code
 - Delete `EconomicDataSeeder.cs`
 - Delete `RoleSeeder.cs`
 - Delete `SqliteMigrationTransition.cs`
@@ -197,20 +216,20 @@ The current migration chain:
 
 #### R1.D — Verify End to End
 
-**R1.10** Fresh database test against LocalDB
+**R1.12** Fresh database test against LocalDB
 - Drop the LocalDB database: `sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "DROP DATABASE Signavex"`
 - Run `dotnet run --project src/Signavex.Web`
 - App should start, `MigrateAsync()` creates and seeds the database via migrations
 - Browse all pages — verify economic series exist, roles exist, pages render
 - **This must pass before moving to R2**
 
-**R1.11** Run all tests
+**R1.13** Run all tests
 - `dotnet test` — all tests must pass
 - Fix any tests that depended on SQLite, the seeders, or the transition code
-- Tests should use an in-memory or LocalDB test database (no SQLite)
+- Tests should use LocalDB, not SQLite
 
-**R1.12** Verify Worker against same database
-- Update Worker's config to point to LocalDB
+**R1.14** Verify Worker against same database
+- Worker's `appsettings.Development.json` should point to the same LocalDB connection string
 - Start the Worker, verify it connects and runs scans against the same database
 - **Both Web and Worker must use the same LocalDB instance for local dev**
 
@@ -482,9 +501,10 @@ Each phase is independently valuable. We can stop after any phase and the app is
 | R1.3 | Verify only — no changes | |
 | R1.4 | New migration `SeedIdentityRoles` | |
 | R1.5 | New migration `SeedEconomicSeries` | |
-| R1.6-R1.7 | `Web/Program.cs`, `Worker/Program.cs` | |
-| R1.8 | `ServiceCollectionExtensions.cs`, `SignavexOptions.cs` | |
-| R1.9 | `.csproj` files | `EconomicDataSeeder.cs`, `RoleSeeder.cs`, `SqliteMigrationTransition.cs`, `SqlServerTypeSqliteGenerator.cs` |
+| R1.6-R1.7 | `Worker/appsettings.json`, `.gitignore`, `Web/appsettings.json` | |
+| R1.8-R1.9 | `Web/Program.cs`, `Worker/Program.cs` | |
+| R1.10 | `ServiceCollectionExtensions.cs`, `SignavexOptions.cs` | |
+| R1.11 | `.csproj` files | `EconomicDataSeeder.cs`, `RoleSeeder.cs`, `SqliteMigrationTransition.cs`, `SqlServerTypeSqliteGenerator.cs` |
 | R2.1-R2.7 | 8 `.razor` files, possibly new JS | |
 | R2.8 | `App.razor` | |
 | R3.1-R3.9 | `tools/MigrateData`, `.gitignore` | `data/signavex.db` |
