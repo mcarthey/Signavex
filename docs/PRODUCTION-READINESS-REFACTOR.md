@@ -228,7 +228,7 @@ The current migration chain:
 - Fix any tests that depended on SQLite, the seeders, or the transition code
 - Tests should use LocalDB, not SQLite
 
-- [ ] **R1.14** Verify Worker against same database
+- [x] **R1.14** Verify Worker against same database
 - Worker's `appsettings.Development.json` should point to the same LocalDB connection string
 - Start the Worker, verify it connects and runs scans against the same database
 - **Both Web and Worker must use the same LocalDB instance for local dev**
@@ -344,7 +344,7 @@ _Goal: Preserve the month of scan history, daily briefs, and economic data accum
 - Check a candidate detail page — signal results, scores intact
 - **Spot-check at least 3 pages of data visually — don't just trust row counts**
 
-- [ ] **R3.7** Verify the Worker against LocalDB
+- [x] **R3.7** Verify the Worker against LocalDB
 - Start the Worker pointing at LocalDB
 - Verify it picks up the existing scan schedule
 - Verify it doesn't re-run or duplicate anything
