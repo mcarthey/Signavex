@@ -3,11 +3,12 @@ using Signavex.Infrastructure.Persistence;
 using Signavex.Infrastructure.Persistence.Entities;
 
 // ---- Configuration ----
-var sqlitePath = @"E:\Documents\Work\dev\repos\Signavex\src\Signavex.Web\data\signavex.db";
+var sqlitePath = args.Length > 1
+    ? args[1]
+    : @"E:\Documents\Work\dev\repos\Signavex\tools\signavex-sqlite-backup.db";
 var sqlServerConn = args.Length > 0
     ? args[0]
-    : Environment.GetEnvironmentVariable("SIGNAVEX_SQL_CONN")
-      ?? throw new Exception("Pass Azure SQL connection string as arg or set SIGNAVEX_SQL_CONN env var");
+    : @"Server=(localdb)\MSSQLLocalDB;Database=Signavex;Trusted_Connection=True;TrustServerCertificate=True;";
 
 Console.WriteLine($"Source: SQLite at {sqlitePath}");
 Console.WriteLine($"Target: SQL Server at {sqlServerConn[..50]}...");

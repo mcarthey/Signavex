@@ -1,0 +1,12 @@
+AspNetRoles|2
+AspNetUsers|1
+AspNetUserRoles|2
+ScanRuns|36
+ScanCandidates|6325
+ScanCheckpoints|1
+ScanCommands|43
+DailyBriefs|25
+EconomicSeries|21
+EconomicObservations|14508
+EconomicSyncTrackers|12
+FundamentalsCache|149
