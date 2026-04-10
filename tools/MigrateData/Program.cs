@@ -3,28 +3,43 @@ using Signavex.Infrastructure.Persistence;
 using Signavex.Infrastructure.Persistence.Entities;
 
 // ---- Configuration ----
-var sqlitePath = args.Length > 1
-    ? args[1]
-    : @"E:\Documents\Work\dev\repos\Signavex\tools\signavex-sqlite-backup.db";
-var sqlServerConn = args.Length > 0
+// Usage:
+//   MigrateData <target-connection-string> <source-connection-string-or-sqlite-path>
+//
+// Source detection: if the source arg ends in .db it's treated as SQLite (read-only),
+// otherwise it's treated as a SQL Server connection string.
+//
+// Defaults (no args): source = local SQLite backup, target = LocalDB
+
+var targetConn = args.Length > 0
     ? args[0]
     : @"Server=(localdb)\MSSQLLocalDB;Database=Signavex;Trusted_Connection=True;TrustServerCertificate=True;";
 
-Console.WriteLine($"Source: SQLite at {sqlitePath}");
-Console.WriteLine($"Target: SQL Server at {sqlServerConn[..50]}...");
+var sourceArg = args.Length > 1
+    ? args[1]
+    : @"E:\Documents\Work\dev\repos\Signavex\tools\signavex-sqlite-backup.db";
+
+var sourceIsSqlite = sourceArg.EndsWith(".db", StringComparison.OrdinalIgnoreCase);
+
+Console.WriteLine($"Source: {(sourceIsSqlite ? "SQLite at " + sourceArg : "SQL Server at " + Truncate(sourceArg, 50))}");
+Console.WriteLine($"Target: SQL Server at {Truncate(targetConn, 50)}");
 Console.WriteLine();
 
 // ---- Build contexts ----
-var sqliteOptions = new DbContextOptionsBuilder<SignavexDbContext>()
-    .UseSqlite($"Data Source={sqlitePath};Mode=ReadOnly")
+var sourceOptions = new DbContextOptionsBuilder<SignavexDbContext>();
+if (sourceIsSqlite)
+    sourceOptions.UseSqlite($"Data Source={sourceArg};Mode=ReadOnly");
+else
+    sourceOptions.UseSqlServer(sourceArg);
+
+var targetOptions = new DbContextOptionsBuilder<SignavexDbContext>()
+    .UseSqlServer(targetConn)
     .Options;
 
-var sqlServerOptions = new DbContextOptionsBuilder<SignavexDbContext>()
-    .UseSqlServer(sqlServerConn)
-    .Options;
+using var source = new SignavexDbContext(sourceOptions.Options);
+using var target = new SignavexDbContext(targetOptions);
 
-using var source = new SignavexDbContext(sqliteOptions);
-using var target = new SignavexDbContext(sqlServerOptions);
+static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "...";
 
 // ---- Migrate tables in dependency order ----
 
