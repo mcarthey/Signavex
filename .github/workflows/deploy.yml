@@ -52,6 +52,19 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # Tailwind CSS — the project's MSBuild target only runs on Windows
+      # (it looks for .tailwind\tailwindcss.exe). On the Ubuntu runner we
+      # download the Linux standalone binary and produce app.built.css
+      # ourselves before dotnet publish picks up wwwroot.
+      - name: Build Tailwind CSS
+        run: |
+          curl -sSL -o tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.2.1/tailwindcss-linux-x64
+          chmod +x tailwindcss
+          ./tailwindcss \
+            -i src/Signavex.Web/Styles/app.css \
+            -o src/Signavex.Web/wwwroot/css/app.built.css \
+            --minify
+
       - name: Publish Signavex.Web
         run: dotnet publish src/Signavex.Web -c Release -o ./publish
 
