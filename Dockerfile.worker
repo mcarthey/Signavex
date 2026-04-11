@@ -1,0 +1,64 @@
+# ============================================================
+# Signavex.Worker — Multi-stage Docker build
+# ============================================================
+#
+# Stage 1 (build): Uses the full .NET 8 SDK image to compile
+#                   and publish the Worker. This stage is large
+#                   but discarded after building.
+#
+# Stage 2 (runtime): Uses the smaller .NET 8 runtime image and
+#                    copies only the published output from stage 1.
+#                    This is the final image we deploy.
+#
+# Why two stages? The SDK image is ~800MB. The runtime image is
+# ~200MB. By separating them, the final image is much smaller —
+# faster to push, pull, and start.
+#
+# Build from the repo root:
+#   docker build -f Dockerfile.worker -t signavex-worker:latest .
+# ============================================================
+
+# ----- Stage 1: Build -----
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy csproj files first (leverages Docker layer caching).
+# If only source code changes (not dependencies), Docker can
+# reuse the cached "dotnet restore" layer instead of redoing it.
+COPY src/Signavex.Domain/Signavex.Domain.csproj src/Signavex.Domain/
+COPY src/Signavex.Signals/Signavex.Signals.csproj src/Signavex.Signals/
+COPY src/Signavex.Engine/Signavex.Engine.csproj src/Signavex.Engine/
+COPY src/Signavex.Infrastructure/Signavex.Infrastructure.csproj src/Signavex.Infrastructure/
+COPY src/Signavex.Worker/Signavex.Worker.csproj src/Signavex.Worker/
+
+RUN dotnet restore src/Signavex.Worker/Signavex.Worker.csproj
+
+# Now copy everything else (source code).
+# This layer rebuilds whenever source changes, but the restore
+# layer above is reused.
+COPY src/ src/
+
+# Publish in Release mode.
+# --no-restore: skip restore (already done above)
+# -o /app/publish: output directory inside the image
+RUN dotnet publish src/Signavex.Worker/Signavex.Worker.csproj \
+    -c Release \
+    --no-restore \
+    -o /app/publish
+
+# ----- Stage 2: Runtime -----
+# We use aspnet:8.0 (not runtime:8.0) because the Worker transitively
+# depends on ASP.NET Core Identity via Signavex.Infrastructure. That
+# dependency puts it in the Microsoft.AspNetCore.App shared framework,
+# which isn't available in the base runtime image.
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+# Copy ONLY the published output from the build stage.
+# Everything else (source, NuGet cache, SDK) is discarded.
+COPY --from=build /app/publish .
+
+# The Worker is a .NET console app. ENTRYPOINT defines what
+# runs when the container starts. We use the published DLL
+# rather than the .exe because Linux containers don't run .exe.
+ENTRYPOINT ["dotnet", "Signavex.Worker.dll"]

@@ -1,0 +1,39 @@
+# Build artifacts
+**/bin
+**/obj
+**/publish
+**/out
+
+# IDE
+**/.vs
+**/.vscode
+**/.idea
+*.user
+*.suo
+
+# Source control
+.git
+.gitignore
+.github
+
+# Documentation
+*.md
+docs/
+
+# Local databases
+**/data/*.db
+**/data/*.db-*
+
+# Environment-specific config (we'll pass these as env vars to the container)
+**/appsettings.Development.json
+**/appsettings.Production.json
+
+# Test projects (Worker container doesn't need them)
+tests/
+
+# Tools (not needed in worker image)
+tools/
+
+# Claude/AI files
+.claude/
+CLAUDE.md
