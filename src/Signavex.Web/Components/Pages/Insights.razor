@@ -33,24 +33,7 @@
                 </div>
             }
         </div>
-        <form method="post" action="/insights/generate" data-enhance>
-            <AntiforgeryToken />
-            <button type="submit"
-                    class="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-elevation-1 transition-colors hover:bg-primary/90">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-                </svg>
-                <span>Generate Now</span>
-            </button>
-        </form>
     </div>
-
-    @if (_generationRequested)
-    {
-        <div class="rounded-[var(--radius-md)] border border-primary/30 bg-primary/5 p-4 mb-4 text-sm text-on-surface">
-            Brief generation requested. The Worker will process it shortly — refresh the page in a minute or two to see the new brief.
-        </div>
-    }
 
     @if (_brief is null)
     {
@@ -60,8 +43,7 @@
             </svg>
             <h3 class="text-lg font-semibold text-on-surface mb-2">No Insights Yet</h3>
             <p class="text-sm text-on-surface-variant max-w-md mx-auto">
-                Daily insights are generated automatically after each stock scan completes,
-                or you can click <strong>Generate Now</strong> above. The Worker service must be running to process requests.
+                Today's brief is being prepared. Check back in a few minutes — briefs are generated automatically each morning after the daily scan completes.
             </p>
         </div>
     }
@@ -115,9 +97,6 @@
 @code {
     [Parameter]
     public string? DateParam { get; set; }
-
-    [SupplyParameterFromQuery(Name = "requested")]
-    public bool _generationRequested { get; set; }
 
     private DailyBrief? _brief;
     private IReadOnlyList<DailyBrief> _recentBriefs = Array.Empty<DailyBrief>();

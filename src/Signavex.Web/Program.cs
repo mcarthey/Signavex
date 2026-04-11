@@ -270,28 +270,46 @@ app.MapPost("/account/billing-portal", async (
     return Results.Redirect(session.Url);
 }).RequireAuthorization();
 
-// Insights: enqueue brief generation command
-app.MapPost("/insights/generate", async (DailyBriefService briefService) =>
-{
-    await briefService.RequestGenerationAsync();
-    return Results.Redirect("/insights?requested=true");
-}).RequireAuthorization();
+// =============================================================================
+// Admin endpoints — Admin role only
+// All expensive operations live here. Non-admin users have no way to trigger them.
+// =============================================================================
 
-// Economy: enqueue economic data sync command
-app.MapPost("/economy/sync", async (EconomicDashboardService econ) =>
-{
-    await econ.RequestSyncAsync();
-    return Results.Redirect("/economy?requested=true");
-}).RequireAuthorization();
-
-// Dashboard: enqueue scan command
-app.MapPost("/dashboard/scan", async (ScanDashboardService dashboard) =>
+app.MapPost("/admin/scan", async (ScanDashboardService dashboard) =>
 {
     await dashboard.RequestScanAsync();
-    return Results.Redirect("/?requested=true");
-}).RequireAuthorization();
+    return Results.Redirect("/admin?action=scan");
+}).RequireAuthorization(policy => policy.RequireRole("Admin"));
 
-// Dashboard: CSV export of latest scan candidates
+app.MapPost("/admin/sync-economic", async (EconomicDashboardService econ) =>
+{
+    await econ.RequestSyncAsync();
+    return Results.Redirect("/admin?action=sync-economic");
+}).RequireAuthorization(policy => policy.RequireRole("Admin"));
+
+app.MapPost("/admin/generate-brief", async (DailyBriefService briefService) =>
+{
+    await briefService.RequestGenerationAsync();
+    return Results.Redirect("/admin?action=generate-brief");
+}).RequireAuthorization(policy => policy.RequireRole("Admin"));
+
+app.MapPost("/admin/run-backtest", (BacktestRunnerService backtest, HttpContext ctx) =>
+{
+    var asOfStr = ctx.Request.Form["asOfDate"].ToString();
+    if (!DateOnly.TryParse(asOfStr, out var asOf))
+        asOf = DateOnly.FromDateTime(DateTime.Today.AddMonths(-1));
+
+    // Fire and forget — backtest takes minutes, user must refresh to see result
+    _ = Task.Run(() => backtest.RunBacktestAsync(asOf));
+
+    return Results.Redirect("/admin?action=run-backtest");
+}).RequireAuthorization(policy => policy.RequireRole("Admin"));
+
+// =============================================================================
+// CSV export endpoints — available to authenticated users (any role)
+// These are read-only data downloads, not expensive operations.
+// =============================================================================
+
 app.MapGet("/dashboard/export.csv", async (ScanDashboardService dashboard) =>
 {
     var result = await dashboard.GetLatestResultAsync();
@@ -303,20 +321,6 @@ app.MapGet("/dashboard/export.csv", async (ScanDashboardService dashboard) =>
     return Results.File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", fileName);
 }).RequireAuthorization();
 
-// Backtest: kick off a backtest run (fire and forget)
-app.MapPost("/backtest/run", (BacktestRunnerService backtest, HttpContext ctx) =>
-{
-    var asOfStr = ctx.Request.Form["asOfDate"].ToString();
-    if (!DateOnly.TryParse(asOfStr, out var asOf))
-        asOf = DateOnly.FromDateTime(DateTime.Today.AddMonths(-1));
-
-    // Fire and forget — backtest takes minutes, user must refresh to see result
-    _ = Task.Run(() => backtest.RunBacktestAsync(asOf));
-
-    return Results.Redirect("/backtest?requested=true");
-}).RequireAuthorization().DisableAntiforgery();
-
-// Backtest: CSV export of latest backtest result
 app.MapGet("/backtest/export.csv", (BacktestRunnerService backtest) =>
 {
     var result = backtest.LatestResult;

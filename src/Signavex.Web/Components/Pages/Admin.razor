@@ -1,0 +1,181 @@
+@page "/admin"
+@attribute [Authorize(Roles = "Admin")]
+@using Signavex.Domain.Configuration
+@using Signavex.Domain.Interfaces
+@using Signavex.Domain.Models
+@using Signavex.Web.Services
+@using Microsoft.Extensions.Options
+@inject ScanDashboardService DashboardService
+@inject ApiKeyValidationService ApiKeyService
+@inject IOptions<SignavexOptions> Options
+@inject IDailyBriefStore BriefStore
+@inject IEconomicDataStore EconomicStore
+
+<PageTitle>Admin — Signavex</PageTitle>
+
+<div class="animate-fade-in">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-on-surface tracking-tight">Admin</h1>
+        <p class="text-sm text-on-surface-variant mt-0.5">System operations and configuration. Visible only to administrators.</p>
+    </div>
+
+    @if (RequestedAction is not null)
+    {
+        <div class="rounded-[var(--radius-md)] border border-primary/30 bg-primary/5 p-4 mb-4 text-sm text-on-surface">
+            @RequestedAction
+        </div>
+    }
+
+    @* System Actions *@
+    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
+        <h3 class="text-base font-semibold text-on-surface mb-1">System Actions</h3>
+        <p class="text-xs text-on-surface-variant mb-4">
+            These actions trigger expensive backend operations. Use sparingly. The Worker runs all of these on a schedule automatically — manual triggers are for testing or recovery.
+        </p>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+            @* Run Scan *@
+            <form method="post" action="/admin/scan" data-enhance class="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-outline-variant/50 p-3">
+                <AntiforgeryToken />
+                <div>
+                    <p class="text-sm font-medium text-on-surface">Run Scan</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Evaluates ~903 stocks against all 13 signals. Takes 30-90 minutes. Burns Polygon API quota.</p>
+                </div>
+                <button type="submit" class="self-start rounded-[var(--radius-sm)] bg-primary px-4 py-1.5 text-xs font-medium text-on-primary hover:brightness-110">
+                    Run Scan Now
+                </button>
+            </form>
+
+            @* Sync Economic Data *@
+            <form method="post" action="/admin/sync-economic" data-enhance class="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-outline-variant/50 p-3">
+                <AntiforgeryToken />
+                <div>
+                    <p class="text-sm font-medium text-on-surface">Sync Economic Data</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Pulls latest values for all enabled FRED indicators. Takes 5-15 minutes.</p>
+                </div>
+                <button type="submit" class="self-start rounded-[var(--radius-sm)] bg-primary px-4 py-1.5 text-xs font-medium text-on-primary hover:brightness-110">
+                    Sync Now
+                </button>
+            </form>
+
+            @* Generate Brief *@
+            <form method="post" action="/admin/generate-brief" data-enhance class="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-outline-variant/50 p-3">
+                <AntiforgeryToken />
+                <div>
+                    <p class="text-sm font-medium text-on-surface">Generate Daily Brief</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Generates a new AI brief from the latest scan + economy data. Costs ~$0.02 per call.</p>
+                </div>
+                <button type="submit" class="self-start rounded-[var(--radius-sm)] bg-primary px-4 py-1.5 text-xs font-medium text-on-primary hover:brightness-110">
+                    Generate Now
+                </button>
+            </form>
+
+            @* Run Backtest *@
+            <form method="post" action="/admin/run-backtest" data-enhance class="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-outline-variant/50 p-3">
+                <AntiforgeryToken />
+                <div>
+                    <p class="text-sm font-medium text-on-surface">Run Backtest</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Runs a full scan against historical data for the selected date.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="date" name="asOfDate"
+                           value="@DateOnly.FromDateTime(DateTime.Today.AddMonths(-1)).ToString("yyyy-MM-dd")"
+                           max="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")"
+                           class="flex-1 rounded-[var(--radius-xs)] border border-outline bg-surface-container px-2 py-1 text-xs" />
+                    <button type="submit" class="rounded-[var(--radius-sm)] bg-primary px-4 py-1.5 text-xs font-medium text-on-primary hover:brightness-110">
+                        Run Backtest
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @* System Status *@
+    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
+        <h3 class="text-base font-semibold text-on-surface mb-3">System Status</h3>
+
+        <dl class="grid gap-x-4 gap-y-2 sm:grid-cols-2 text-sm">
+            <div>
+                <dt class="text-on-surface-variant">Last scan</dt>
+                <dd class="text-on-surface">@(_lastScan?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "—")</dd>
+            </div>
+            <div>
+                <dt class="text-on-surface-variant">Last brief</dt>
+                <dd class="text-on-surface">@(_lastBrief?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "—")</dd>
+            </div>
+            <div>
+                <dt class="text-on-surface-variant">Surfacing threshold</dt>
+                <dd class="text-on-surface">@Options.Value.SurfacingThreshold.ToString("F2")</dd>
+            </div>
+        </dl>
+    </div>
+
+    @* API Key Status *@
+    <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
+        <h3 class="text-base font-semibold text-on-surface mb-3">API Keys</h3>
+        <div class="space-y-2">
+            @foreach (var (name, configured) in GetKeyStatus())
+            {
+                <div class="flex items-center gap-2">
+                    @if (configured)
+                    {
+                        <div class="h-2 w-2 rounded-full bg-success"></div>
+                        <span class="text-sm text-on-surface">@name</span>
+                        <span class="text-xs text-success">Configured</span>
+                    }
+                    else
+                    {
+                        <div class="h-2 w-2 rounded-full bg-error"></div>
+                        <span class="text-sm text-on-surface">@name</span>
+                        <span class="text-xs text-error">Not configured</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "action")]
+    public string? RequestedActionParam { get; set; }
+
+    private DateTime? _lastScan;
+    private DateTime? _lastBrief;
+
+    private string? RequestedAction => RequestedActionParam switch
+    {
+        "scan" => "Scan requested. The Worker will start within a minute. Refresh in a few minutes to see progress.",
+        "sync-economic" => "Economic data sync requested. The Worker will start within a minute.",
+        "generate-brief" => "Brief generation requested. The Worker will pick this up shortly.",
+        "run-backtest" => "Backtest started. This takes several minutes — check back later for results.",
+        _ => null
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            var latest = await DashboardService.GetLatestResultAsync();
+            _lastScan = latest?.CompletedAtUtc;
+
+            var briefs = await BriefStore.GetRecentBriefsAsync(1);
+            _lastBrief = briefs.Count > 0 ? briefs[0].GeneratedAtUtc : null;
+        }
+        catch
+        {
+            // Ignore — show "—" for unavailable data
+        }
+
+    }
+
+    private List<(string Name, bool Configured)> GetKeyStatus()
+    {
+        var missing = ApiKeyService.GetMissingKeys();
+        return new List<(string, bool)>
+        {
+            ("Polygon (OHLCV + News)", !missing.Contains("Polygon (OHLCV + News)")),
+            ("Alpha Vantage (Fundamentals)", !missing.Contains("Alpha Vantage (Fundamentals)")),
+            ("FRED (Economic Data)", !missing.Contains("FRED (Economic Data)")),
+        };
+    }
+}
