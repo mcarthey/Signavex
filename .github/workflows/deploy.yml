@@ -1,18 +1,26 @@
-name: Build, Test & Deploy
+name: CI / Deploy
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:        # The "Run workflow" button in the Actions tab
 
 env:
   DOTNET_VERSION: '8.0.x'
 
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+# Required for OIDC: GitHub only mints the federated token if the
+# workflow explicitly requests permission. Without id-token: write,
+# the azure/login step fails with an opaque error.
+permissions:
+  id-token: write
+  contents: read
 
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -21,20 +29,21 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
+      - name: Restore
         run: dotnet restore
 
       - name: Build
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal
+        run: dotnet test --no-build --configuration Release
 
   deploy:
-    needs: build-and-test
+    name: Deploy Web to Azure
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
+    needs: ci                                     # Won't start unless CI passed
+    if: github.event_name == 'workflow_dispatch'  # Manual trigger only
+    environment: production                       # Lets us require approval later
     steps:
       - uses: actions/checkout@v4
 
@@ -43,14 +52,18 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Publish
+      - name: Publish Signavex.Web
         run: dotnet publish src/Signavex.Web -c Release -o ./publish
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./publish/
-          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: signavex-web
+          package: ./publish
