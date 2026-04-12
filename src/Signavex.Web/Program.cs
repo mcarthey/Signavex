@@ -314,9 +314,7 @@ app.MapPost("/admin/run-backtest", (BacktestRunnerService backtest, HttpContext 
 // These are read-only data downloads, not expensive operations.
 // =============================================================================
 
-// Stock Picks CSV — exposed at /picks/export.csv (canonical) and
-// /dashboard/export.csv (legacy alias kept until external links migrate).
-var picksCsvHandler = async (ScanDashboardService dashboard) =>
+app.MapGet("/picks/export.csv", async (ScanDashboardService dashboard) =>
 {
     var result = await dashboard.GetLatestResultAsync();
     if (result is null || result.Candidates.Count == 0)
@@ -325,9 +323,7 @@ var picksCsvHandler = async (ScanDashboardService dashboard) =>
     var csv = Signavex.Domain.Helpers.CsvExportHelper.GenerateCsv(result.Candidates);
     var fileName = $"signavex-scan-{DateTime.UtcNow:yyyy-MM-dd}.csv";
     return Results.File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", fileName);
-};
-app.MapGet("/picks/export.csv", picksCsvHandler).RequireAuthorization();
-app.MapGet("/dashboard/export.csv", picksCsvHandler).RequireAuthorization();
+}).RequireAuthorization();
 
 app.MapGet("/backtest/export.csv", (BacktestRunnerService backtest) =>
 {
