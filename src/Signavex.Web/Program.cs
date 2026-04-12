@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,22 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, SendGridEmailSender>();
+
+// Google OAuth — Sign in with Google for reduced login friction.
+// Requires a Google Cloud project with OAuth consent screen configured.
+// Client ID and secret are read from configuration (Google:ClientId, Google:ClientSecret).
+// If not configured, the Google button on the login page is hidden gracefully.
+var googleClientId = builder.Configuration["Google:ClientId"];
+var googleClientSecret = builder.Configuration["Google:ClientSecret"];
+if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle(options =>
+        {
+            options.ClientId = googleClientId;
+            options.ClientSecret = googleClientSecret;
+        });
+}
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -163,6 +180,66 @@ app.MapGet("/", async (HttpContext ctx, UserManager<ApplicationUser> userManager
         }
     }
     return Results.Redirect("/today");
+});
+
+// Google OAuth: initiate the external login challenge
+app.MapGet("/account/login-google", (HttpContext ctx) =>
+{
+    var redirectUrl = "/account/google-callback";
+    var properties = new Microsoft.AspNetCore.Authentication.AuthenticationProperties { RedirectUri = redirectUrl };
+    return Results.Challenge(properties, ["Google"]);
+});
+
+// Google OAuth: callback after Google authenticates the user.
+// Creates a local account if this is the user's first Google sign-in.
+app.MapGet("/account/google-callback", async (
+    HttpContext ctx,
+    SignInManager<ApplicationUser> signInManager,
+    UserManager<ApplicationUser> userManager) =>
+{
+    var info = await signInManager.GetExternalLoginInfoAsync();
+    if (info is null)
+        return Results.Redirect("/account/login?error=google-failed");
+
+    // Try to sign in with the existing external login
+    var result = await signInManager.ExternalLoginSignInAsync(
+        info.LoginProvider, info.ProviderKey, isPersistent: true);
+
+    if (result.Succeeded)
+        return Results.Redirect("/");
+
+    // First-time Google login — create a local account
+    var email = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.Email);
+    if (string.IsNullOrEmpty(email))
+        return Results.Redirect("/account/login?error=google-no-email");
+
+    // Check if an account with this email already exists (registered via password)
+    var existingUser = await userManager.FindByEmailAsync(email);
+    if (existingUser is not null)
+    {
+        // Link Google to the existing account
+        await userManager.AddLoginAsync(existingUser, info);
+        await signInManager.SignInAsync(existingUser, isPersistent: true);
+        return Results.Redirect("/");
+    }
+
+    // Brand-new user — create account + start trial
+    var user = new ApplicationUser
+    {
+        UserName = email,
+        Email = email,
+        EmailConfirmed = true,
+        TrialStartedAt = DateTime.UtcNow
+    };
+
+    var createResult = await userManager.CreateAsync(user);
+    if (!createResult.Succeeded)
+        return Results.Redirect("/account/login?error=google-create-failed");
+
+    await userManager.AddToRoleAsync(user, "Free");
+    await userManager.AddLoginAsync(user, info);
+    await signInManager.SignInAsync(user, isPersistent: true);
+    return Results.Redirect("/");
 });
 
 // Welcome onboarding completion — marks the user as onboarded and sets the
