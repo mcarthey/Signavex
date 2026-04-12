@@ -137,6 +137,10 @@ app.UseAntiforgery();
 
 app.MapHealthChecks("/health");
 
+// Home → Today. Normalizes the URL bar so the "Today" nav link highlights
+// correctly and the canonical post-login landing page is /today, not /.
+app.MapGet("/", () => Results.Redirect("/today"));
+
 app.MapPost("/account/logout", async (SignInManager<ApplicationUser> signInManager) =>
 {
     await signInManager.SignOutAsync();
@@ -310,7 +314,9 @@ app.MapPost("/admin/run-backtest", (BacktestRunnerService backtest, HttpContext 
 // These are read-only data downloads, not expensive operations.
 // =============================================================================
 
-app.MapGet("/dashboard/export.csv", async (ScanDashboardService dashboard) =>
+// Stock Picks CSV — exposed at /picks/export.csv (canonical) and
+// /dashboard/export.csv (legacy alias kept until external links migrate).
+var picksCsvHandler = async (ScanDashboardService dashboard) =>
 {
     var result = await dashboard.GetLatestResultAsync();
     if (result is null || result.Candidates.Count == 0)
@@ -319,7 +325,9 @@ app.MapGet("/dashboard/export.csv", async (ScanDashboardService dashboard) =>
     var csv = Signavex.Domain.Helpers.CsvExportHelper.GenerateCsv(result.Candidates);
     var fileName = $"signavex-scan-{DateTime.UtcNow:yyyy-MM-dd}.csv";
     return Results.File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", fileName);
-}).RequireAuthorization();
+};
+app.MapGet("/picks/export.csv", picksCsvHandler).RequireAuthorization();
+app.MapGet("/dashboard/export.csv", picksCsvHandler).RequireAuthorization();
 
 app.MapGet("/backtest/export.csv", (BacktestRunnerService backtest) =>
 {

@@ -1,3 +1,4 @@
+@page "/search"
 @page "/history"
 @attribute [Authorize]
 @using Signavex.Domain.Interfaces
@@ -6,11 +7,11 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
 
-<PageTitle>Scan History — Signavex</PageTitle>
+<PageTitle>Stock Search — Signavex</PageTitle>
 
 <div class="animate-fade-in">
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-on-surface tracking-tight">Scan History</h1>
+        <h1 class="text-2xl font-bold text-on-surface tracking-tight">Stock Search</h1>
         <p class="text-sm text-on-surface-variant mt-0.5">Browse past scans, search tickers, and track market trends.</p>
     </div>
 
@@ -53,7 +54,7 @@
         @* Ticker Search — standard form GET *@
         <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
             <h2 class="text-sm font-semibold text-on-surface mb-3">Ticker Search</h2>
-            <form method="get" action="/history" class="flex items-center gap-2 mb-3">
+            <form method="get" action="/search" class="flex items-center gap-2 mb-3">
                 <input type="text"
                        name="ticker"
                        value="@TickerQuery"
@@ -298,7 +299,7 @@
             parts.Add($"ticker={Uri.EscapeDataString(TickerQuery)}");
         if (!string.IsNullOrEmpty(scanId))
             parts.Add($"scan={Uri.EscapeDataString(scanId)}");
-        return parts.Count > 0 ? "/history?" + string.Join("&", parts) : "/history";
+        return parts.Count > 0 ? "/search?" + string.Join("&", parts) : "/search";
     }
 
     private static string MultiplierColor(double multiplier) => multiplier switch

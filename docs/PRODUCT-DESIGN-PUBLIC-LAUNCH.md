@@ -312,11 +312,15 @@ _Goal: Enforce the Reader/Investor product model using the existing `Free` and `
 
 _Goal: Restructure the sidebar and routes to match the new product model._
 
-- [ ] **L3.1** Rename routes per the route table in section 4
-- [ ] **L3.2** Restructure NavMenu.razor with the new nav items, role-gated
-- [ ] **L3.3** Make `/today` the post-login landing page
-- [ ] **L3.4** Update all internal links (currently point to `/dashboard`, `/insights`, `/candidate/{ticker}`, etc.)
-- [ ] **L3.5** Verify: all navigation works, no broken links
+- [x] **L3.1** Rename routes per the route table in section 4 — done via multiple `@page` directives so old URLs continue to work as backward-compat aliases
+- [x] **L3.2** Restructure NavMenu.razor with the new nav items in the new order (Today → Economy → Stock Picks → Stock Search → Backtest → About → Admin → Settings)
+- [x] **L3.3** Make `/today` the post-login landing page — `Program.cs` now has `app.MapGet("/", () => Results.Redirect("/today"))` so the URL bar normalizes correctly
+- [x] **L3.4** Update internal links: CandidateDetail breadcrumb + return link, Dashboard candidate cards, Dashboard CSV link, Dashboard BuildHref helper, History BuildHref + form action, Insights archive sidebar
+- [x] **L3.5** Page titles + h1 headings updated for renamed pages (Daily Insights → Today, Dashboard → Stock Picks, Scan History → Stock Search)
+- [x] **L3.6** CSV export endpoint exposed at both `/picks/export.csv` (canonical) and `/dashboard/export.csv` (legacy) using a shared handler
+- [ ] **L3.7** Smoke test on production: log in, verify nav, click each item, confirm everything renders, confirm `/dashboard`, `/insights`, `/history`, `/candidate/AAPL` legacy URLs still work as backward-compat aliases
+
+**Discovered during L3 (deferred to L4 discussion):** `Insights.razor` and `Economy.razor` have no `[Authorize]` attribute, so anonymous users can currently read daily briefs and the economy dashboard at `/insights` and `/economy`. The product intent (per Section 3) is paid-only access. This is a real security gap relative to the design — fix is one line per file but is a behavioral change worth discussing before applying.
 
 ### Phase L4 — Plain English Pass
 
