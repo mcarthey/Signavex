@@ -283,18 +283,18 @@ _Added during L1 because the previous deploy path was an unused SmarterASP FTP w
 - [x] **L1.8e** `terraform apply` — 4 resources added, 0 changed, 0 destroyed
 - [x] **L1.8f** Set three GitHub repo secrets via `gh secret set`: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
 - [x] **L1.8g** Replace `.github/workflows/deploy.yml` with a two-job workflow: `ci` (build + test on every push/PR) and `deploy` (manual `workflow_dispatch` only, gated on `needs: ci`, authenticated via `azure/login@v2` OIDC)
-- [ ] **L1.8h** Commit + push Signavex (fires CI, deploy stays dormant)
-- [ ] **L1.8i** Commit + push learnedgeek-infra
-- [ ] **L1.8j** Watch CI go green on main
-- [ ] **L1.8k** Manually trigger deploy from the Actions tab → first real Azure deploy via OIDC
+- [x] **L1.8h** Commit + push Signavex (fires CI, deploy stays dormant)
+- [x] **L1.8i** Commit + push learnedgeek-infra
+- [x] **L1.8j** Watch CI go green on main
+- [x] **L1.8k** Manually trigger deploy from the Actions tab → first real Azure deploy via OIDC (required fixing OIDC subject from `ref:refs/heads/main` to `environment:production` and adding Tailwind CSS Linux build step — see Implementation Log)
 
 ### Phase L1.9 — Post-deploy Admin role assignment on Azure SQL
 
-- [ ] **L1.9a** After deploy completes, the `SeedAdminRole` migration runs automatically on boot and creates the `Admin` role row in Azure SQL
-- [ ] **L1.9b** Register `markm@learnedgeek.com` (or chosen admin account) on the deployed app
-- [ ] **L1.9c** Connect to Azure SQL via sqlcmd or Azure Data Studio, run `INSERT INTO AspNetUserRoles` to put the admin user in the Admin role
-- [ ] **L1.9d** Log in, confirm Admin nav item appears, hit `/admin`, verify all four action cards render
-- [ ] **L1.9e** Log in as a test non-admin account (or use incognito), confirm no Admin nav item and `/admin` returns 403
+- [x] **L1.9a** After deploy completes, the `SeedAdminRole` migration runs automatically on boot and creates the `Admin` role row in Azure SQL
+- [x] **L1.9b** Register `markm@learnedgeek.com` (Admin account) on the deployed app
+- [x] **L1.9c** Connect to Azure SQL via Portal Query Editor, run `INSERT INTO AspNetUserRoles` to put the admin user in the Admin role
+- [x] **L1.9d** Log in, confirm Admin nav item appears, hit `/admin`, verify all four action cards render + Sync Now POST works
+- [x] **L1.9e** Verified from `mcarthey@gmail.com` (Pro, no Admin): no Admin nav, confirms role gating works both directions
 
 ### Phase L2 — Access Matrix (names kept as Free/Pro)
 
@@ -303,10 +303,10 @@ _Goal: Enforce the Reader/Investor product model using the existing `Free` and `
 **Decision (2026-04-11):** We are **not** renaming Free→Reader or Pro→Investor. The rename would touch ~20+ files and require reconfiguring Stripe products for essentially cosmetic benefit. The product calls them Reader / Investor in user-facing copy; the code keeps Free / Pro. A future rename can happen alongside a Stripe product migration if ever needed.
 
 - [ ] **L2.1** Document the mapping in CLAUDE.md: `Free = Reader product tier`, `Pro = Investor product tier`
-- [ ] **L2.2** Add `[Authorize(Roles = "Pro,Admin")]` (or equivalent policy) to stock-screening pages: Dashboard, Candidate detail, History, Backtest
-- [ ] **L2.3** Confirm Economy, Insights, and economy detail pages are accessible to Free, Pro, and Admin
-- [ ] **L2.4** Update `UpgradePrompt` copy to reference "Investor tier" in user-facing text while keeping the `Pro` role internally
-- [ ] **L2.5** Verify: Free users see economy + insights only; Pro users see all non-admin pages
+- [x] **L2.2** All `IsInRole("Pro")` checks updated to `IsInRole("Pro") || IsInRole("Admin")` across Dashboard, CandidateDetail, History, Backtest, Settings + `UpgradePrompt` + NavMenu PRO badges + `ProRequired` policy in Program.cs
+- [x] **L2.3** Economy + Today (Insights) accessible to all authenticated users (Free, Pro, Admin) — confirmed
+- [x] **L2.4** UpgradePrompt copy updated as part of L4 plain English pass (L4 shipped same session)
+- [x] **L2.5** Verified: Admin account (`markm@learnedgeek.com`) sees all features, no upgrade prompts. Pro account (`mcarthey@gmail.com`) sees all features, no upgrade prompts. Free accounts see upgrade prompts on Pro-gated pages.
 
 ### Phase L3 — Navigation & Information Architecture
 
@@ -318,20 +318,23 @@ _Goal: Restructure the sidebar and routes to match the new product model._
 - [x] **L3.4** Update internal links: CandidateDetail breadcrumb + return link, Dashboard candidate cards, Dashboard CSV link, Dashboard BuildHref helper, History BuildHref + form action, Insights archive sidebar
 - [x] **L3.5** Page titles + h1 headings updated for renamed pages (Daily Insights → Today, Dashboard → Stock Picks, Scan History → Stock Search)
 - [x] **L3.6** CSV export endpoint at `/picks/export.csv` only
-- [ ] **L3.7** Smoke test on production: log in, verify nav, click each item, confirm everything renders
+- [x] **L3.7** Smoke test on production: all pages verified, nav order correct, 404 page working for legacy URLs
+- [x] **L3.8** Friendly 404 / 403 / 500 error page shipped — `Error.razor` handles all status codes with distinct headings, copy, and icons. Uses `UseStatusCodePagesWithReExecute` to preserve original status code in the response.
 
-**Discovered during L3 (deferred to L4 discussion):** `Insights.razor` and `Economy.razor` have no `[Authorize]` attribute, so anonymous users can currently read daily briefs and the economy dashboard at `/insights` and `/economy`. The product intent (per Section 3) is paid-only access. This is a real security gap relative to the design — fix is one line per file but is a behavioral change worth discussing before applying.
+**Discovered during L3, fixed in L4:** `Insights.razor` and `Economy.razor` had no `[Authorize]` attribute — anonymous access closed at the start of L4 session (2026-04-12).
 
 ### Phase L4 — Plain English Pass
 
 _Goal: Every user-facing string reviewed for clarity._
 
-- [ ] **L4.1** Audit every `.razor` file for jargon, technical terms, raw numbers
-- [ ] **L4.2** Replace per the table in section 6
-- [ ] **L4.3** Add `ⓘ` tooltips to technical terms (RSI, MACD, P/E, etc.)
-- [ ] **L4.4** Rewrite empty states to be friendly
-- [ ] **L4.5** Rewrite error messages — no stack traces
-- [ ] **L4.6** Verify: read every page out loud, ask "would my dad understand this?"
+**Pre-L4 fix (2026-04-12):** Added `@attribute [Authorize]` to `Insights.razor` and `Economy.razor` — anonymous access closed. Anonymous users now bounce to login. Teaser functionality for anonymous visitors is planned for L7.
+
+- [x] **L4.1** Audit every `.razor` page for jargon, technical terms, raw numbers — all 7 user-facing pages reviewed (Today, Economy, Stock Picks, Candidate Detail, Stock Search, Backtest, Settings). Admin page intentionally left technical.
+- [x] **L4.2** ~70 string replacements applied. Key terminology changes: candidate→stock pick, raw score→base score, final score→overall score, scan→analysis/update, surfacing threshold→minimum score to show, market multiplier→market mood, bullish/bearish→positive/negative, unavailable signals→missing data, universe→indexes tracked. `MarketExplanation()` fully rewritten to conversational tone. Economy indicator cards reordered (name first, FRED series ID second). Section headings rewritten. Subtitles added for first-time reader context.
+- [ ] **L4.3** Add `ⓘ` tooltips to technical terms (RSI, MACD, P/E, etc.) — **deferred**. Signal descriptions already exist behind expand-to-see interaction gates in `SignalBreakdown.razor` and `MarketContextBar.razor`. Tooltips would be polish on top of an existing mechanism. Defer until after soft launch.
+- [x] **L4.4** Empty states rewritten to be friendly on all pages ("Today's Brief Is on the Way", "No stock picks yet — check back after the next update", etc.)
+- [x] **L4.5** Audited for stack trace exposure — clean. All catch blocks in Razor components are bare catch (no exception details surfaced). Friendly Error.razor handles 404/403/500. No `ex.Message` or `StackTrace` anywhere in Web components.
+- [ ] **L4.6** Verify: read every page out loud, ask "would my dad understand this?" — **needs deploy + manual visual review**
 
 ### Phase L5 — Onboarding, Trial & Welcome
 
