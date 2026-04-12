@@ -75,7 +75,7 @@ builder.Services.AddSingleton<DailyBriefService>();
 
 // Authorization policies
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("ProRequired", policy => policy.RequireRole("Pro"));
+    .AddPolicy("ProRequired", policy => policy.RequireRole("Pro", "Admin"));
 
 // Health checks
 builder.Services.AddHealthChecks()

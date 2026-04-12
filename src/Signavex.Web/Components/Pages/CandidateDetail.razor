@@ -270,7 +270,7 @@
         _loading = true;
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _isPro = authState.User.IsInRole("Pro");
+        _isPro = authState.User.IsInRole("Pro") || authState.User.IsInRole("Admin");
 
         // Load from persisted latest scan
         try

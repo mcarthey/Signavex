@@ -35,7 +35,7 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
-            _showPrompt = !user.IsInRole("Pro");
+            _showPrompt = !user.IsInRole("Pro") && !user.IsInRole("Admin");
         }
     }
 }

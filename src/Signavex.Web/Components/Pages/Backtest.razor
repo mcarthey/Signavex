@@ -129,6 +129,6 @@
     protected override async Task OnParametersSetAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _isPro = authState.User.IsInRole("Pro");
+        _isPro = authState.User.IsInRole("Pro") || authState.User.IsInRole("Admin");
     }
 }

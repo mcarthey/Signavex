@@ -148,7 +148,7 @@
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _isPro = authState.User.IsInRole("Pro");
+        _isPro = authState.User.IsInRole("Pro") || authState.User.IsInRole("Admin");
 
         _options = OptionsMonitor.CurrentValue;
         _weights = _options.SignalWeights;
