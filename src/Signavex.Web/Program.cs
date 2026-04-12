@@ -159,28 +159,9 @@ app.UseAntiforgery();
 
 app.MapHealthChecks("/health");
 
-// Home → onboarding check → Today. Authenticated users who haven't completed
-// onboarding get redirected to /welcome first. Users whose 7-day trial has
-// expired (and who aren't in a paid role) see /trial-expired. Everyone else
-// lands on /today.
-app.MapGet("/", async (HttpContext ctx, UserManager<ApplicationUser> userManager) =>
-{
-    if (ctx.User.Identity?.IsAuthenticated == true)
-    {
-        var user = await userManager.GetUserAsync(ctx.User);
-        if (user is not null)
-        {
-            if (!user.HasCompletedOnboarding)
-                return Results.Redirect("/welcome");
-
-            if (user.TrialStartedAt.HasValue
-                && user.TrialStartedAt.Value.AddDays(7) < DateTime.UtcNow
-                && !ctx.User.IsInRole("Pro") && !ctx.User.IsInRole("Admin"))
-                return Results.Redirect("/trial-expired");
-        }
-    }
-    return Results.Redirect("/today");
-});
+// Home route ("/") is handled by Landing.razor — a Razor component that
+// shows the marketing landing page for anonymous users and redirects
+// authenticated users to /today (with onboarding/trial checks).
 
 // Google OAuth: initiate the external login challenge
 app.MapGet("/account/login-google", (HttpContext ctx) =>

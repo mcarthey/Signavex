@@ -1,0 +1,228 @@
+@page "/"
+@using Microsoft.AspNetCore.Identity
+@using Signavex.Infrastructure.Persistence
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+
+@if (_authenticated)
+{
+    @* Authenticated users never see the landing page — they get redirected
+       to /today (or /welcome or /trial-expired based on their state).
+       The redirect happens in OnParametersSetAsync; this is just a loading
+       indicator for the brief moment before the redirect fires. *@
+    <div class="flex items-center justify-center py-16">
+        <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+    </div>
+}
+else
+{
+    <PageTitle>Signavex — Make Sense of the Market Every Day</PageTitle>
+
+    @* Hero *@
+    <div class="flex flex-col items-center justify-center text-center py-16 sm:py-24 px-4 animate-fade-in">
+        <div class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-primary text-on-primary font-bold text-2xl">
+            S
+        </div>
+
+        <h1 class="text-3xl sm:text-4xl font-bold text-on-surface tracking-tight mb-4 max-w-2xl">
+            Make sense of the market every day
+        </h1>
+        <p class="text-lg text-on-surface-variant max-w-xl mb-8">
+            AI-powered daily briefs, economic indicators, and stock screening — all in one place, written in plain English.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+            <a href="/account/register"
+               class="rounded-[var(--radius-sm)] bg-primary px-8 py-3 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90 no-underline">
+                Start your free trial
+            </a>
+            <a href="/account/login"
+               class="rounded-[var(--radius-sm)] border border-outline-variant px-8 py-3 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container no-underline">
+                Sign in
+            </a>
+        </div>
+
+        <p class="text-xs text-on-surface-variant mt-4">7 days free, no credit card required</p>
+    </div>
+
+    @* Three features *@
+    <div class="grid gap-6 sm:grid-cols-3 max-w-4xl mx-auto px-4 mb-16">
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6 text-center">
+            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-primary/15">
+                <svg class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                </svg>
+            </div>
+            <h3 class="text-base font-semibold text-on-surface mb-2">Daily AI Brief</h3>
+            <p class="text-sm text-on-surface-variant">
+                Every weekday morning, get a plain-English summary of what's happening in the economy and markets. No jargon, no guessing.
+            </p>
+        </div>
+
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6 text-center">
+            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-primary/15">
+                <svg class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3" />
+                </svg>
+            </div>
+            <h3 class="text-base font-semibold text-on-surface mb-2">Economic Dashboard</h3>
+            <p class="text-sm text-on-surface-variant">
+                Live economic indicators with health scores, trend analysis, and plain-English explanations of what the numbers mean for you.
+            </p>
+        </div>
+
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6 text-center">
+            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-primary/15">
+                <svg class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625z" />
+                </svg>
+            </div>
+            <h3 class="text-base font-semibold text-on-surface mb-2">Stock Screening</h3>
+            <p class="text-sm text-on-surface-variant">
+                Our system checks hundreds of stocks daily across 13 signals — price trends, volume, fundamentals, and more — and surfaces the ones worth watching.
+            </p>
+        </div>
+    </div>
+
+    @* How it works *@
+    <div class="max-w-2xl mx-auto px-4 mb-16 text-center">
+        <h2 class="text-xl font-bold text-on-surface mb-8">How it works</h2>
+        <div class="grid gap-8 sm:grid-cols-3">
+            <div>
+                <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-on-primary font-bold text-sm">1</div>
+                <h3 class="text-sm font-semibold text-on-surface mb-1">Sign up free</h3>
+                <p class="text-xs text-on-surface-variant">Create an account in seconds. No credit card needed for your 7-day trial.</p>
+            </div>
+            <div>
+                <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-on-primary font-bold text-sm">2</div>
+                <h3 class="text-sm font-semibold text-on-surface mb-1">Get daily briefs</h3>
+                <p class="text-xs text-on-surface-variant">Each morning, read a fresh summary of the economy and market conditions.</p>
+            </div>
+            <div>
+                <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-on-primary font-bold text-sm">3</div>
+                <h3 class="text-sm font-semibold text-on-surface mb-1">Stay informed</h3>
+                <p class="text-xs text-on-surface-variant">Make better decisions without spending hours reading financial news.</p>
+            </div>
+        </div>
+    </div>
+
+    @* Pricing preview *@
+    <div class="max-w-2xl mx-auto px-4 mb-16 text-center">
+        <h2 class="text-xl font-bold text-on-surface mb-2">Simple pricing</h2>
+        <p class="text-sm text-on-surface-variant mb-8">Start free for 7 days, then choose a plan that fits.</p>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6">
+                <h3 class="text-lg font-bold text-on-surface mb-1">Reader</h3>
+                <p class="text-2xl font-bold text-primary mb-2">$5<span class="text-sm font-normal text-on-surface-variant">/mo</span></p>
+                <ul class="text-sm text-on-surface-variant text-left space-y-2">
+                    <li class="flex items-start gap-2">
+                        <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Daily AI market briefs
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Economic health dashboard
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Brief archive (30 days)
+                    </li>
+                </ul>
+            </div>
+
+            <div class="rounded-[var(--radius-md)] border-2 border-primary bg-surface-container p-6">
+                <h3 class="text-lg font-bold text-on-surface mb-1">Investor</h3>
+                <p class="text-2xl font-bold text-primary mb-2">$15<span class="text-sm font-normal text-on-surface-variant">/mo</span></p>
+                <ul class="text-sm text-on-surface-variant text-left space-y-2">
+                    <li class="flex items-start gap-2">
+                        <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Everything in Reader
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Daily stock picks (13 signals)
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Stock search + history
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Historical backtesting
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    @* Footer *@
+    <div class="border-t border-outline-variant py-8 px-4 text-center">
+        <div class="flex items-center justify-center gap-2 mb-4">
+            <div class="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-primary text-on-primary font-bold text-sm">
+                S
+            </div>
+            <span class="font-semibold text-on-surface">Signavex</span>
+        </div>
+        <p class="text-xs text-on-surface-variant mb-4 max-w-md mx-auto">
+            Signavex is an educational tool for stock market analysis. It does not provide financial advice.
+            All data and signals are for informational purposes only.
+        </p>
+        <div class="flex items-center justify-center gap-4 text-xs text-on-surface-variant">
+            <a href="/about" class="hover:text-primary transition-colors">About</a>
+            <span>|</span>
+            <a href="mailto:support@learnedgeek.com" class="hover:text-primary transition-colors">Contact</a>
+        </div>
+        <p class="text-xs text-on-surface-variant/50 mt-4">&copy; @DateTime.Now.Year Signavex</p>
+    </div>
+}
+
+@code {
+    private bool _authenticated;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            _authenticated = true;
+
+            // Smart redirect for authenticated users: onboarding → trial check → today
+            var user = await UserManager.FindByNameAsync(authState.User.Identity.Name!);
+            if (user is not null)
+            {
+                if (!user.HasCompletedOnboarding)
+                {
+                    Navigation.NavigateTo("/welcome", forceLoad: true);
+                    return;
+                }
+
+                if (user.TrialStartedAt.HasValue
+                    && user.TrialStartedAt.Value.AddDays(7) < DateTime.UtcNow
+                    && !authState.User.IsInRole("Pro") && !authState.User.IsInRole("Admin"))
+                {
+                    Navigation.NavigateTo("/trial-expired", forceLoad: true);
+                    return;
+                }
+            }
+
+            Navigation.NavigateTo("/today", forceLoad: true);
+        }
+    }
+}
