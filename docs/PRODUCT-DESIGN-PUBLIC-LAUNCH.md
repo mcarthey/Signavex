@@ -333,15 +333,17 @@ _Goal: Every user-facing string reviewed for clarity._
 - [ ] **L4.5** Rewrite error messages — no stack traces
 - [ ] **L4.6** Verify: read every page out loud, ask "would my dad understand this?"
 
-### Phase L5 — Onboarding & Welcome
+### Phase L5 — Onboarding, Trial & Welcome
 
-_Goal: First-time users know what to do._
+_Goal: First-time users know what to do, and the 7-day free trial is tracked._
 
-- [ ] **L5.1** Add `HasCompletedOnboarding` field to ApplicationUser (migration)
-- [ ] **L5.2** Create welcome page (`/welcome`)
-- [ ] **L5.3** Redirect new users to `/welcome` after first login, then to `/today`
-- [ ] **L5.4** Add a "Take the tour" button on the welcome page (optional, can defer)
-- [ ] **L5.5** Verify: register a new test account, walk through the flow
+- [ ] **L5.1** Add `HasCompletedOnboarding` and `TrialStartedAt` fields to ApplicationUser (migration)
+- [ ] **L5.2** On first login, set `TrialStartedAt = DateTime.UtcNow` if not already set
+- [ ] **L5.3** Create welcome page (`/welcome`) — shown only on first login, then redirects to `/today`
+- [ ] **L5.4** Add trial-aware middleware or page logic: if `TrialStartedAt + 7 days < now` and user has no paid role (Free/Pro), show a "trial expired" interstitial with a CTA to subscribe
+- [ ] **L5.5** Trial expired state: user can still log in and see the interstitial, but content pages (Today, Economy, Stock Picks, etc.) are gated behind the paywall
+- [ ] **L5.6** Add a "Take the tour" button on the welcome page (optional, can defer)
+- [ ] **L5.7** Verify: register a new test account, walk through the full trial lifecycle (welcome → 7 days → expiration → subscribe)
 
 ### Phase L6 — Sign-in Improvements
 
@@ -355,16 +357,19 @@ _Goal: Reduce login friction for non-technical users._
 - [ ] **L6.6** Implement magic link login flow (optional, defer if Google is sufficient)
 - [ ] **L6.7** Verify: log in as your dad's Gmail, confirm account auto-created
 
-### Phase L7 — Landing Page
+### Phase L7 — Landing Page & Anonymous Teaser
 
-_Goal: Convert anonymous visitors into signups._
+_Goal: Convert anonymous visitors into signups. Show just enough to demonstrate value._
 
-- [ ] **L7.1** Build the new landing page at `/`
-- [ ] **L7.2** Hero, features, how-it-works, pricing, footer (per section 8)
-- [ ] **L7.3** Add screenshots of the actual product
-- [ ] **L7.4** Decide on pricing (placeholder: Reader $5/mo, Investor $15/mo)
-- [ ] **L7.5** Verify: visit incognito, click through the signup flow
-- [ ] **L7.6** Optional: add a sample brief teaser
+**Decision (2026-04-12):** Anonymous users should NOT get free access to all content. Instead, they see a teaser — a single day's brief (the latest) with a clear "Register for more" CTA. Economy data can show a similar limited preview. The teaser is the conversion hook; registration unlocks the 7-day trial (Phase L5).
+
+- [ ] **L7.1** Build the landing page at `/` — hero, features, how-it-works, pricing, footer (per section 8)
+- [ ] **L7.2** Add a **brief teaser component**: shows the latest daily brief headline + first few paragraphs, truncated, with a "Register to read the full brief and get 7 days free" CTA. This replaces the current login bounce for anonymous users hitting `/today`.
+- [ ] **L7.3** Add an **economy teaser**: show the overall health gauge and category cards (read-only snapshot), but no drill-down into individual indicators. CTA: "Register to explore all economic indicators."
+- [ ] **L7.4** Wire the teasers: anonymous users hitting `/today` or `/economy` see the teaser version, not the login redirect. Authenticated users see the full page as before. (Implementation: either a separate anonymous Razor component that renders the teaser, or conditional rendering within the existing page based on auth state.)
+- [ ] **L7.5** Add screenshots of the actual product to the landing page
+- [ ] **L7.6** Decide on pricing (placeholder: Reader $5/mo, Investor $15/mo)
+- [ ] **L7.7** Verify: visit incognito → landing page → click "Today" → see teaser → click Register → create account → 7-day trial starts → full content unlocked
 
 ### Phase L8 — Mobile Responsive
 
@@ -404,11 +409,11 @@ Things to decide as we go:
 
 1. **Pricing.** What are Reader and Investor tier prices? Need to cover hosting (~$25/mo) + API costs (~$5/mo Anthropic + Polygon scaling). Even at $5 Reader / $15 Investor, you need ~5-10 paying users to break even.
 
-2. **Free trial length?** 7 days? 14 days? 30 days?
+2. ~~**Free trial length?**~~ **Decided (2026-04-12): 7 days.** New accounts get full Reader access for 7 days from first login, then must subscribe. Tracked via `TrialStartedAt` on ApplicationUser (Phase L5).
 
 3. **Email opt-in for daily brief?** Could send the brief to Reader subscribers as an email, not just on the website. Higher engagement, but more SendGrid cost.
 
-4. **Sample teaser on landing page?** Show today's brief headline + first paragraph publicly to build trust?
+4. ~~**Sample teaser on landing page?**~~ **Decided (2026-04-12): Yes.** Anonymous users see a truncated single-day brief as a teaser, plus a limited economy snapshot. Full content requires registration. Detailed in Phase L7.
 
 5. **Shareable URL strategy.** Token-based (signed URLs) or session-based ("here's a free read")?
 
