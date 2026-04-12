@@ -1,0 +1,56 @@
+@page "/trial-expired"
+@attribute [Authorize]
+
+<PageTitle>Trial Ended — Signavex</PageTitle>
+
+<div class="flex min-h-[60vh] items-center justify-center animate-fade-in">
+    <div class="w-full max-w-md text-center">
+        <div class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-warning-container">
+            <svg class="h-8 w-8 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+
+        <h1 class="text-2xl font-bold text-on-surface mb-2">Your free trial has ended</h1>
+        <p class="text-sm text-on-surface-variant mb-6">
+            Thanks for trying Signavex! Your 7-day trial has ended. Subscribe to keep
+            reading daily briefs, tracking the economy, and discovering stock picks.
+        </p>
+
+        <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-5 mb-6 text-left">
+            <h3 class="text-sm font-semibold text-on-surface mb-3">What you'll get with a subscription</h3>
+            <ul class="space-y-2 text-sm text-on-surface-variant">
+                <li class="flex items-start gap-2">
+                    <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Daily AI-generated market briefs in plain English
+                </li>
+                <li class="flex items-start gap-2">
+                    <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Live economic indicators with health scores and trends
+                </li>
+                <li class="flex items-start gap-2">
+                    <svg class="h-4 w-4 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Stock picks scored across 13 signals, updated daily
+                </li>
+            </ul>
+        </div>
+
+        <div class="flex flex-col gap-3">
+            <form method="post" action="/account/upgrade">
+                <button type="submit"
+                        class="w-full rounded-[var(--radius-sm)] bg-primary px-6 py-3 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90">
+                    Subscribe Now
+                </button>
+            </form>
+            <p class="text-xs text-on-surface-variant">
+                Questions? Contact us at <a href="mailto:support@learnedgeek.com" class="text-primary hover:underline">support@learnedgeek.com</a>
+            </p>
+        </div>
+    </div>
+</div>

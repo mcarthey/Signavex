@@ -142,9 +142,46 @@ app.UseAntiforgery();
 
 app.MapHealthChecks("/health");
 
-// Home → Today. Normalizes the URL bar so the "Today" nav link highlights
-// correctly and the canonical post-login landing page is /today, not /.
-app.MapGet("/", () => Results.Redirect("/today"));
+// Home → onboarding check → Today. Authenticated users who haven't completed
+// onboarding get redirected to /welcome first. Users whose 7-day trial has
+// expired (and who aren't in a paid role) see /trial-expired. Everyone else
+// lands on /today.
+app.MapGet("/", async (HttpContext ctx, UserManager<ApplicationUser> userManager) =>
+{
+    if (ctx.User.Identity?.IsAuthenticated == true)
+    {
+        var user = await userManager.GetUserAsync(ctx.User);
+        if (user is not null)
+        {
+            if (!user.HasCompletedOnboarding)
+                return Results.Redirect("/welcome");
+
+            if (user.TrialStartedAt.HasValue
+                && user.TrialStartedAt.Value.AddDays(7) < DateTime.UtcNow
+                && !ctx.User.IsInRole("Pro") && !ctx.User.IsInRole("Admin"))
+                return Results.Redirect("/trial-expired");
+        }
+    }
+    return Results.Redirect("/today");
+});
+
+// Welcome onboarding completion — marks the user as onboarded and sets the
+// trial start time if not already set (handles accounts created before this
+// feature existed).
+app.MapPost("/welcome/complete", async (
+    HttpContext ctx,
+    UserManager<ApplicationUser> userManager) =>
+{
+    var user = await userManager.GetUserAsync(ctx.User);
+    if (user is not null)
+    {
+        user.HasCompletedOnboarding = true;
+        if (!user.TrialStartedAt.HasValue)
+            user.TrialStartedAt = DateTime.UtcNow;
+        await userManager.UpdateAsync(user);
+    }
+    return Results.Redirect("/today");
+}).RequireAuthorization();
 
 app.MapPost("/account/logout", async (SignInManager<ApplicationUser> signInManager) =>
 {
