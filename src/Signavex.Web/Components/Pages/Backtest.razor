@@ -8,14 +8,14 @@
 @inject ApiKeyValidationService ApiKeyService
 @inject AuthenticationStateProvider AuthStateProvider
 
-<PageTitle>Signavex Backtest</PageTitle>
+<PageTitle>Backtest — Signavex</PageTitle>
 
 <div class="animate-fade-in">
     @* Header *@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-on-surface tracking-tight">Backtest</h1>
-            <p class="text-sm text-on-surface-variant mt-0.5">Latest historical scan simulation</p>
+            <p class="text-sm text-on-surface-variant mt-0.5">See what our system would have picked on a past date</p>
         </div>
     </div>
 
@@ -29,7 +29,7 @@
     @if (!_isPro)
     {
         <UpgradePrompt Title="Unlock Backtesting"
-                       Description="Run historical simulations to see what candidates would have surfaced on any past date." />
+                       Description="See what stocks our system would have picked on any past date." />
     }
     else
     {
@@ -59,7 +59,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-on-surface">
-                            As-of @result.AsOfDate.ToString("yyyy-MM-dd") — @result.Candidates.Count candidate(s) surfaced
+                            As-of @result.AsOfDate.ToString("yyyy-MM-dd") — @result.Candidates.Count stock pick@(result.Candidates.Count != 1 ? "s" : "") found
                         </p>
                         @if (result.Caveat is not null)
                         {
@@ -73,7 +73,7 @@
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                             </svg>
-                            CSV
+                            Export CSV
                         </a>
                     }
                 </div>
@@ -96,7 +96,7 @@
                             </div>
                             <div class="flex items-center gap-3 text-xs text-on-surface-variant">
                                 <span class="rounded-[var(--radius-xs)] bg-surface-container px-1.5 py-0.5 font-medium">@candidate.Tier</span>
-                                <span>Raw: @candidate.RawScore.ToString("F3")</span>
+                                <span>Base: @candidate.RawScore.ToString("F3")</span>
                                 <span>@candidate.SignalResults.Count(s => s.IsAvailable) signals</span>
                             </div>
                         </div>

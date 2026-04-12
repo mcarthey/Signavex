@@ -32,8 +32,8 @@
     {
         <div class="flex flex-col items-center justify-center py-16 text-center">
             <h3 class="text-base font-semibold text-on-surface mb-4">@Ticker</h3>
-            <UpgradePrompt Title="Unlock Full Candidate Details"
-                           Description="Free accounts can view details for the top 5 candidates. Upgrade to Pro for access to all candidate breakdowns." />
+            <UpgradePrompt Title="Unlock Full Stock Details"
+                           Description="You can view details for the top 5 picks. Upgrade to see every stock's full breakdown." />
         </div>
     }
     else if (_candidate is null)
@@ -44,9 +44,9 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                 </svg>
             </div>
-            <h3 class="text-base font-semibold text-on-surface">Candidate not found</h3>
+            <h3 class="text-base font-semibold text-on-surface">Stock not found</h3>
             <p class="mt-1 text-sm text-on-surface-variant">
-                <strong>@Ticker</strong> is not in the latest scan results.
+                <strong>@Ticker</strong> isn't in the latest picks list.
             </p>
             <a href="/picks" class="mt-3 text-sm font-medium text-primary hover:underline">Return to stock picks</a>
         </div>
@@ -78,34 +78,33 @@
                             </span>
                         }
                         <span class="text-xs text-on-surface-variant">
-                            Evaluated @_candidate.EvaluatedAt.ToString("g") UTC
+                            Checked @_candidate.EvaluatedAt.ToString("MMM d, yyyy")
                         </span>
                     </div>
                 </div>
                 <div class="flex items-center gap-6">
                     <div class="text-center">
-                        <p class="text-xs text-on-surface-variant mb-1">Raw Score</p>
+                        <p class="text-xs text-on-surface-variant mb-1">Base Score</p>
                         <p class="text-xl font-bold text-on-surface">@_candidate.RawScore.ToString("F3")</p>
                     </div>
                     <div class="text-center">
-                        <p class="text-xs text-on-surface-variant mb-1">Final Score</p>
+                        <p class="text-xs text-on-surface-variant mb-1">Overall Score</p>
                         <div class="text-xl"><ScoreBadge Score="_candidate.FinalScore" /></div>
                     </div>
                 </div>
             </div>
 
-            @* Score formula *@
-            <div class="mt-4 pt-3 border-t border-outline-variant">
-                <p class="text-xs text-on-surface-variant">
-                    Score:
-                    <span class="font-semibold text-on-surface">@_candidate.RawScore.ToString("F3")</span>
-                    <span class="mx-1">raw</span>
+            @* Score formula — de-emphasized, detail for power users *@
+            <div class="mt-4 pt-3 border-t border-outline-variant/50">
+                <p class="text-[11px] text-on-surface-variant/70">
+                    <span class="font-medium text-on-surface-variant">@_candidate.RawScore.ToString("F3")</span>
+                    <span class="mx-1">base</span>
                     <span class="mx-1">&times;</span>
-                    <span class="font-semibold text-on-surface">@_candidate.MarketContext.Multiplier.ToString("F2")</span>
+                    <span class="font-medium text-on-surface-variant">@_candidate.MarketContext.Multiplier.ToString("F2")</span>
                     <span class="mx-1">market</span>
                     <span class="mx-1">=</span>
-                    <span class="font-semibold text-on-surface">@_candidate.FinalScore.ToString("F3")</span>
-                    <span class="mx-1">final</span>
+                    <span class="font-medium text-on-surface-variant">@_candidate.FinalScore.ToString("F3")</span>
+                    <span class="mx-1">overall</span>
                 </p>
             </div>
         </div>
@@ -175,7 +174,7 @@
         @if (_tickerHistory is not null && _tickerHistory.Appearances.Count > 1)
         {
             <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1 mb-4">
-                <h3 class="text-sm font-semibold text-on-surface mb-3">Score History</h3>
+                <h3 class="text-sm font-semibold text-on-surface mb-3">How This Stock Has Scored</h3>
                 <div class="flex items-end gap-1 h-24">
                     @foreach (var appearance in _tickerHistory.Appearances)
                     {
@@ -197,7 +196,7 @@
                     }
                 </div>
                 <p class="text-xs text-on-surface-variant mt-2">
-                    Appeared in @_tickerHistory.Appearances.Count scan@(_tickerHistory.Appearances.Count == 1 ? "" : "s")
+                    Picked in @_tickerHistory.Appearances.Count analysis@(_tickerHistory.Appearances.Count == 1 ? "" : " runs")
                 </p>
             </div>
         }
@@ -206,7 +205,7 @@
         @if (_bullishSignals.Any())
         {
             <h3 class="text-sm font-semibold text-success mb-2 mt-4">
-                Bullish Signals (@_bullishSignals.Count)
+                Positive Signals (@_bullishSignals.Count)
             </h3>
             <SignalBreakdown Signals="_bullishSignals" />
         }
@@ -214,7 +213,7 @@
         @if (_bearishSignals.Any())
         {
             <h3 class="text-sm font-semibold text-error mb-2 mt-4">
-                Bearish Signals (@_bearishSignals.Count)
+                Negative Signals (@_bearishSignals.Count)
             </h3>
             <SignalBreakdown Signals="_bearishSignals" />
         }
@@ -230,7 +229,7 @@
         @if (_unavailableSignals.Any())
         {
             <h3 class="text-sm font-semibold text-on-surface-variant mb-2 mt-4">
-                Unavailable Signals (@_unavailableSignals.Count)
+                Missing Data (@_unavailableSignals.Count)
             </h3>
             <SignalBreakdown Signals="_unavailableSignals" />
         }

@@ -14,13 +14,13 @@
 <div class="animate-fade-in">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-on-surface tracking-tight">Settings</h1>
-        <p class="text-sm text-on-surface-variant mt-0.5">Current signal weight configuration</p>
+        <p class="text-sm text-on-surface-variant mt-0.5">How Signavex evaluates stocks</p>
     </div>
 
     @if (!_isPro)
     {
         <UpgradePrompt Title="Unlock Settings"
-                       Description="View API key status, signal weight configuration, and economic data sync information." />
+                       Description="See how Signavex evaluates stocks and what data sources are connected." />
     }
     else
     {
@@ -50,22 +50,22 @@
 
         @* Economic Data *@
         <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1 mb-4">
-            <h3 class="text-base font-semibold text-on-surface mb-3">Economic Data (FRED)</h3>
+            <h3 class="text-base font-semibold text-on-surface mb-3">Economic Data Sources</h3>
             <div class="space-y-2">
                 <div class="flex items-center justify-between py-1">
-                    <span class="text-sm text-on-surface">Tracked Series</span>
+                    <span class="text-sm text-on-surface">Tracked Indicators</span>
                     <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
                         @_totalSeries total (@_enabledSeries enabled)
                     </span>
                 </div>
                 <div class="flex items-center justify-between py-1">
-                    <span class="text-sm text-on-surface">Sync Schedule</span>
+                    <span class="text-sm text-on-surface">Update Schedule</span>
                     <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
-                        Weekdays 4:30 PM ET (Worker)
+                        Weekdays 4:30 PM ET
                     </span>
                 </div>
                 <div class="flex items-center justify-between py-1">
-                    <span class="text-sm text-on-surface">Last Synced Series</span>
+                    <span class="text-sm text-on-surface">Last Updated</span>
                     <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
                         @(_lastSyncLabel ?? "Never")
                     </span>
@@ -76,7 +76,7 @@
         <div class="grid gap-4 md:grid-cols-2">
             @* Stock Signals *@
             <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
-                <h3 class="text-base font-semibold text-on-surface mb-3">Stock Signals (Tier 2)</h3>
+                <h3 class="text-base font-semibold text-on-surface mb-3">Stock Signals</h3>
                 <div class="space-y-2">
                     @foreach (var (name, weight) in GetStockSignals())
                     {
@@ -93,7 +93,7 @@
             <div class="space-y-4">
                 @* Market Signals *@
                 <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-1">
-                    <h3 class="text-base font-semibold text-on-surface mb-3">Market Signals (Tier 1)</h3>
+                    <h3 class="text-base font-semibold text-on-surface mb-3">Market Signals</h3>
                     <div class="space-y-2">
                         @foreach (var (name, weight) in GetMarketSignals())
                         {
@@ -112,13 +112,13 @@
                     <h3 class="text-base font-semibold text-on-surface mb-3">General</h3>
                     <div class="space-y-2">
                         <div class="flex items-center justify-between py-1">
-                            <span class="text-sm text-on-surface">Surfacing Threshold</span>
+                            <span class="text-sm text-on-surface">Minimum Score to Show</span>
                             <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
                                 @_options.SurfacingThreshold.ToString("F2")
                             </span>
                         </div>
                         <div class="flex items-center justify-between py-1">
-                            <span class="text-sm text-on-surface">Universe</span>
+                            <span class="text-sm text-on-surface">Indexes Tracked</span>
                             <span class="rounded-[var(--radius-xs)] bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface-variant">
                                 @string.Join(", ", _options.Universe)
                             </span>

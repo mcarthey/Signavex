@@ -13,6 +13,7 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-on-surface tracking-tight">Today</h1>
+            <p class="text-sm text-on-surface-variant mt-0.5">Your daily market brief</p>
             @if (_brief is not null)
             {
                 <div class="flex items-center gap-3 mt-1">
@@ -22,13 +23,13 @@
                     @if (_brief.EconomicHealthScore.HasValue)
                     {
                         <span class="text-xs font-medium px-2 py-0.5 rounded-full @GetHealthClass(_brief.EconomicHealthScore.Value)">
-                            Health: @_brief.EconomicHealthScore/100
+                            Economic Health: @_brief.EconomicHealthScore/100
                         </span>
                     }
                     @if (_brief.CandidateCount > 0)
                     {
                         <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary">
-                            @_brief.CandidateCount candidate@(_brief.CandidateCount != 1 ? "s" : "")
+                            @_brief.CandidateCount stock pick@(_brief.CandidateCount != 1 ? "s" : "")
                         </span>
                     }
                 </div>
@@ -42,9 +43,9 @@
             <svg class="h-12 w-12 mx-auto text-on-surface-variant/40 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
             </svg>
-            <h3 class="text-lg font-semibold text-on-surface mb-2">No Insights Yet</h3>
+            <h3 class="text-lg font-semibold text-on-surface mb-2">Today's Brief Is on the Way</h3>
             <p class="text-sm text-on-surface-variant max-w-md mx-auto">
-                Today's brief is being prepared. Check back in a few minutes — briefs are generated automatically each morning after the daily scan completes.
+                Today's brief is being prepared. Check back in a few minutes — a new brief is published every weekday morning.
             </p>
         </div>
     }

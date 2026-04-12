@@ -18,20 +18,21 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-on-surface tracking-tight">Stock Picks</h1>
+            <p class="text-sm text-on-surface-variant mt-0.5">Stocks our system flagged as interesting today</p>
             @if (_lastScanTime.HasValue)
             {
-                <p class="text-sm text-on-surface-variant mt-0.5">
-                    Last scan @RelativeTime(_lastScanTime.Value)
+                <p class="text-xs text-on-surface-variant">
+                    Updated @RelativeTime(_lastScanTime.Value)
                     @if (_lastScanErrors > 0)
                     {
-                        <span class="text-warning"> · @_lastScanErrors stock(s) skipped</span>
+                        <span class="text-warning"> · @_lastScanErrors stocks had incomplete data</span>
                     }
                 </p>
             }
             @if (_scanStatus?.IsScanning == true)
             {
                 <p class="text-xs text-primary mt-0.5">
-                    Scan in progress · @_scanStatus.Evaluated / @_scanStatus.Total · refresh to see updates
+                    Updating · @_scanStatus.Evaluated of @_scanStatus.Total stocks checked · refresh to see new results
                 </p>
             }
         </div>
@@ -43,7 +44,7 @@
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                     </svg>
-                    CSV
+                    Export CSV
                 </a>
             }
         </div>
@@ -78,29 +79,29 @@
         {
             @* Scan completed with 0 candidates — show rich summary *@
             <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-5">
-                <h3 class="text-base font-semibold text-on-surface mb-4">Last Scan Summary</h3>
+                <h3 class="text-base font-semibold text-on-surface mb-4">Latest Results</h3>
 
                 @* Stats row *@
                 <div class="grid grid-cols-3 gap-4 mb-4">
                     <div class="rounded-[var(--radius-sm)] bg-surface-container p-3 text-center">
                         <p class="text-2xl font-bold text-on-surface">@_totalEvaluated.ToString("N0")</p>
-                        <p class="text-xs text-on-surface-variant mt-0.5">Stocks Evaluated</p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Stocks Checked</p>
                     </div>
                     <div class="rounded-[var(--radius-sm)] bg-surface-container p-3 text-center">
                         <p class="text-2xl font-bold text-on-surface">0</p>
-                        <p class="text-xs text-on-surface-variant mt-0.5">Candidates Found</p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Picks Found</p>
                     </div>
                     <div class="rounded-[var(--radius-sm)] bg-surface-container p-3 text-center">
                         <p class="text-2xl font-bold @(_marketContext.Multiplier >= 1.0 ? "text-success" : "text-warning")">
                             @_marketContext.Multiplier.ToString("F2")x
                         </p>
-                        <p class="text-xs text-on-surface-variant mt-0.5">Market Multiplier</p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Market Mood</p>
                     </div>
                 </div>
 
                 @* Educational explanation *@
                 <div class="rounded-[var(--radius-sm)] border border-outline-variant/50 bg-surface-container/50 p-3">
-                    <p class="text-sm font-medium text-on-surface mb-1">Why no candidates?</p>
+                    <p class="text-sm font-medium text-on-surface mb-1">Why no picks today?</p>
                     <p class="text-sm text-on-surface-variant leading-relaxed">
                         @MarketExplanation()
                     </p>
@@ -115,9 +116,9 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                     </svg>
                 </div>
-                <h3 class="text-base font-semibold text-on-surface">No candidates yet</h3>
+                <h3 class="text-base font-semibold text-on-surface">No stock picks yet</h3>
                 <p class="mt-1 text-sm text-on-surface-variant max-w-sm">
-                    Click <strong>Run Scan</strong> to evaluate the stock universe and discover candidates.
+                    Stock picks appear here after each daily analysis. Check back after the next update.
                 </p>
             </div>
         }
@@ -135,7 +136,7 @@
 
             <a href="@BuildHref(sort: "score")" class="@ChipCss(string.IsNullOrEmpty(Sort) || Sort == "score")">By Score</a>
             <a href="@BuildHref(sort: "ticker")" class="@ChipCss(Sort == "ticker")">A-Z</a>
-            <a href="@BuildHref(sort: "raw")" class="@ChipCss(Sort == "raw")">Raw Score</a>
+            <a href="@BuildHref(sort: "raw")" class="@ChipCss(Sort == "raw")">Base Score</a>
         </div>
 
         @* Candidate cards *@
@@ -153,7 +154,7 @@
                     </div>
                     <div class="flex items-center gap-3 text-xs text-on-surface-variant">
                         <span class="rounded-[var(--radius-xs)] bg-surface-container px-1.5 py-0.5 font-medium">@candidate.Tier</span>
-                        <span>Raw: @candidate.RawScore.ToString("F3")</span>
+                        <span>Base: @candidate.RawScore.ToString("F3")</span>
                         <span>@candidate.SignalResults.Count(s => s.IsAvailable) signals</span>
                     </div>
                 </a>
@@ -161,14 +162,14 @@
         </div>
 
         <p class="mt-3 text-xs text-on-surface-variant">
-            @_filteredResults.Count of @_displayCount candidates shown
+            Showing @_filteredResults.Count of @_displayCount stock picks
         </p>
 
         @if (!_isPro && _displayCount > 5)
         {
             <div class="mt-4">
-                <UpgradePrompt Title="@($"See All {_displayCount} Candidates")"
-                               Description="Free accounts see the top 5 candidates. Upgrade to Pro for the complete list." />
+                <UpgradePrompt Title="@($"See All {_displayCount} Stock Picks")"
+                               Description="You're seeing the top 5 picks. Upgrade to see the full list." />
             </div>
         }
     }
@@ -273,29 +274,26 @@
 
     private string MarketExplanation()
     {
-        var threshold = Options.Value.SurfacingThreshold;
         var mult = _marketContext!.Multiplier;
 
         if (mult < 0.7)
-            return $"Market conditions are very bearish (multiplier {mult:F2}x). " +
-                   $"Every stock's raw score is multiplied by {mult:F2}, meaning a stock would need a raw score above " +
-                   $"{threshold / mult:F2} to clear the {threshold:F2} surfacing threshold. " +
-                   "In conditions like these, even strong individual stocks struggle to surface.";
+            return "The overall market is under significant pressure right now. " +
+                   "Our system adjusts for market conditions — when the market is this weak, stocks need to be " +
+                   "exceptionally strong on their own to make the cut. Even solid companies can fall short when " +
+                   "the broader market is dragging everything down.";
 
         if (mult < 0.9)
-            return $"Market conditions are challenging (multiplier {mult:F2}x). " +
-                   $"The market multiplier reduces all final scores, so stocks need a raw score above " +
-                   $"{threshold / mult:F2} to clear the {threshold:F2} surfacing threshold. " +
-                   "Fewer stocks meet this bar when the broader market is under pressure.";
+            return "Market conditions are challenging right now. Our system raises the bar during tough markets, " +
+                   "so fewer stocks qualify. This is by design — it keeps the picks list focused on stocks " +
+                   "that are strong enough to stand out even in a difficult environment.";
 
         if (mult < 1.0)
-            return $"Market conditions are slightly unfavorable (multiplier {mult:F2}x). " +
-                   $"Stocks need a raw score above {threshold / mult:F2} to reach the " +
-                   $"{threshold:F2} surfacing threshold. " +
-                   "Even a small headwind from market conditions can push borderline candidates below the cutoff.";
+            return "The market is slightly cautious right now. A small headwind from overall market conditions " +
+                   "can push borderline stocks just below the cutoff. When the market improves, " +
+                   "these stocks may start appearing.";
 
-        return $"Market conditions are neutral to favorable (multiplier {mult:F2}x), " +
-               $"yet no stocks reached the {threshold:F2} surfacing threshold. " +
-               "This can happen when individual stock signals (volume, trend, analyst ratings) are mixed or weak across the board.";
+        return "Market conditions are favorable, but no individual stocks scored high enough across our signals " +
+               "(price trends, volume, fundamentals) to make today's picks list. " +
+               "This can happen when stock-level indicators are mixed or weak across the board.";
     }
 }

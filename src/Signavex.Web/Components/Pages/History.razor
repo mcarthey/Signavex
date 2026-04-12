@@ -11,13 +11,13 @@
 <div class="animate-fade-in">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-on-surface tracking-tight">Stock Search</h1>
-        <p class="text-sm text-on-surface-variant mt-0.5">Browse past scans, search tickers, and track market trends.</p>
+        <p class="text-sm text-on-surface-variant mt-0.5">Look up any stock and see how it's scored over time.</p>
     </div>
 
     @if (!_isPro)
     {
-        <UpgradePrompt Title="Unlock Scan History"
-                       Description="View past scan results, search individual tickers, and track market multiplier trends over time." />
+        <UpgradePrompt Title="Unlock Stock Search"
+                       Description="Search any stock, see its score history, and track how the market mood has changed over time." />
     }
     else
     {
@@ -25,7 +25,7 @@
         @if (_trend.Count > 0)
         {
             <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
-                <h2 class="text-sm font-semibold text-on-surface mb-3">Market Multiplier Trend</h2>
+                <h2 class="text-sm font-semibold text-on-surface mb-3">Market Mood Over Time</h2>
                 <div class="flex items-end gap-1 h-10">
                     @foreach (var point in _trend)
                     {
@@ -52,12 +52,12 @@
 
         @* Ticker Search — standard form GET *@
         <div class="mb-6 rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
-            <h2 class="text-sm font-semibold text-on-surface mb-3">Ticker Search</h2>
+            <h2 class="text-sm font-semibold text-on-surface mb-3">Look Up a Stock</h2>
             <form method="get" action="/search" class="flex items-center gap-2 mb-3">
                 <input type="text"
                        name="ticker"
                        value="@TickerQuery"
-                       placeholder="Enter ticker (e.g. AAPL)"
+                       placeholder="Enter a stock symbol (e.g. AAPL)"
                        class="flex-1 rounded-[var(--radius-sm)] border border-outline-variant bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/40" />
                 @if (!string.IsNullOrEmpty(ExpandedScanId))
                 {
@@ -76,7 +76,7 @@
                         <span class="text-base font-bold text-on-surface">@_tickerHistory.Ticker</span>
                         <span class="text-sm text-on-surface-variant">@_tickerHistory.CompanyName</span>
                         <span class="text-xs bg-surface-container rounded-[var(--radius-xs)] px-2 py-0.5 font-medium text-on-surface-variant">
-                            @_tickerHistory.Appearances.Count appearance(s)
+                            Picked @_tickerHistory.Appearances.Count time@(_tickerHistory.Appearances.Count != 1 ? "s" : "")
                         </span>
                     </div>
 
@@ -90,7 +90,7 @@
                                 pct = Math.Max(pct, 5);
                                 <div class="flex-1 rounded-t-sm bg-primary/70 transition-all"
                                      style="height: @pct.ToString("F0")%"
-                                     title="@app.ScanDate.ToString("MMM dd") — Final: @app.FinalScore.ToString("F3"), Raw: @app.RawScore.ToString("F3")"></div>
+                                     title="@app.ScanDate.ToString("MMM dd") — Overall: @app.FinalScore.ToString("F3"), Base: @app.RawScore.ToString("F3")"></div>
                             }
                         </div>
 
@@ -99,8 +99,8 @@
                                 <thead>
                                     <tr class="border-b border-outline-variant text-left text-xs text-on-surface-variant">
                                         <th class="py-2 pr-4 font-medium">Date</th>
-                                        <th class="py-2 pr-4 font-medium">Final Score</th>
-                                        <th class="py-2 pr-4 font-medium">Raw Score</th>
+                                        <th class="py-2 pr-4 font-medium">Overall</th>
+                                        <th class="py-2 pr-4 font-medium">Base</th>
                                         <th class="py-2 font-medium">Market</th>
                                     </tr>
                                 </thead>
@@ -132,11 +132,11 @@
 
         @* Recent Scans Table *@
         <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container-lowest p-4">
-            <h2 class="text-sm font-semibold text-on-surface mb-3">Recent Scans</h2>
+            <h2 class="text-sm font-semibold text-on-surface mb-3">Recent Analyses</h2>
 
             @if (_scans.Count == 0)
             {
-                <p class="text-sm text-on-surface-variant py-4 text-center">No scans recorded yet. Run a scan from the Dashboard to get started.</p>
+                <p class="text-sm text-on-surface-variant py-4 text-center">No analysis results yet. Results appear here automatically after each daily update.</p>
             }
             else
             {
@@ -146,9 +146,9 @@
                             <tr class="border-b border-outline-variant text-left text-xs text-on-surface-variant">
                                 <th class="py-2 pr-4 font-medium">Date</th>
                                 <th class="py-2 pr-4 font-medium">Market</th>
-                                <th class="py-2 pr-4 font-medium">Candidates</th>
-                                <th class="py-2 pr-4 font-medium">Evaluated</th>
-                                <th class="py-2 font-medium">Errors</th>
+                                <th class="py-2 pr-4 font-medium">Picks</th>
+                                <th class="py-2 pr-4 font-medium">Checked</th>
+                                <th class="py-2 font-medium">Skipped</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -187,7 +187,7 @@
                                         <td colspan="5" class="px-4 py-3 bg-surface-container/30">
                                             @if (_expandedResult.Candidates.Count == 0)
                                             {
-                                                <p class="text-sm text-on-surface-variant mb-3">No candidates surfaced in this scan.</p>
+                                                <p class="text-sm text-on-surface-variant mb-3">No stocks made the picks list in this analysis.</p>
 
                                                 @if (_expandedResult.MarketContext.MarketSignals.Any())
                                                 {
