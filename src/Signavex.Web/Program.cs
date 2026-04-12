@@ -128,6 +128,11 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+// Friendly status-code pages — re-executes the request internally against
+// /Error/{code} while preserving the original status code in the response.
+// Catches 404, 403, etc. routed through MVC/Razor; static file 404s pass through.
+app.UseStatusCodePagesWithReExecute("/Error/{0}");
+
 app.UseRateLimiter();
 
 app.UseAuthentication();

@@ -1,38 +1,98 @@
 @page "/Error"
+@page "/Error/{Code:int}"
 @using System.Diagnostics
 
-<PageTitle>Error — Signavex</PageTitle>
+<PageTitle>@PageTitleText — Signavex</PageTitle>
 
-<div class="flex min-h-[60vh] items-center justify-center">
+<div class="flex min-h-[60vh] items-center justify-center animate-fade-in">
     <div class="w-full max-w-md text-center">
-        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-error-container">
-            <svg class="h-8 w-8 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] @IconBgClass">
+            @if (Code == 404)
+            {
+                <svg class="h-8 w-8 @IconColorClass" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                </svg>
+            }
+            else if (Code == 403)
+            {
+                <svg class="h-8 w-8 @IconColorClass" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+            }
+            else
+            {
+                <svg class="h-8 w-8 @IconColorClass" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+            }
         </div>
-        <h1 class="text-2xl font-bold text-on-surface mb-2">Something went wrong</h1>
+
+        <h1 class="text-2xl font-bold text-on-surface mb-2">@Heading</h1>
         <p class="text-sm text-on-surface-variant mb-6">
-            An unexpected error occurred. Please try again, or return to the dashboard.
+            @Description
         </p>
+
         @if (ShowRequestId)
         {
             <p class="text-xs text-on-surface-variant mb-4">
                 Request ID: <code class="rounded bg-surface-container px-1 py-0.5 text-xs font-mono">@RequestId</code>
             </p>
         }
-        <a href="/"
-           class="inline-block rounded-[var(--radius-sm)] bg-primary px-6 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90">
-            Go to Dashboard
+
+        <a href="/today"
+           class="inline-block rounded-[var(--radius-sm)] bg-primary px-6 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90 no-underline">
+            Go to Today
         </a>
     </div>
 </div>
 
-@code{
+@code {
+    [Parameter]
+    public int? Code { get; set; }
+
     [CascadingParameter]
     private HttpContext? HttpContext { get; set; }
 
     private string? RequestId { get; set; }
-    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    // Only show the request ID for 500-class errors — it's noise on a 404 or 403
+    // and only useful when something actually broke server-side.
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId) && Code is not 404 and not 403;
+
+    private string PageTitleText => Code switch
+    {
+        404 => "Page Not Found",
+        403 => "Access Denied",
+        _ => "Error"
+    };
+
+    private string Heading => Code switch
+    {
+        404 => "Page not found",
+        403 => "Access denied",
+        _ => "Something went wrong"
+    };
+
+    private string Description => Code switch
+    {
+        404 => "The page you're looking for doesn't exist or has been moved. Head back to Today's brief and start fresh.",
+        403 => "You don't have permission to view this page. If you think that's a mistake, contact support.",
+        _ => "An unexpected error occurred on our end. Please try again in a moment, or head back to Today's brief."
+    };
+
+    private string IconBgClass => Code switch
+    {
+        404 => "bg-primary/15",
+        403 => "bg-warning-container",
+        _ => "bg-error-container"
+    };
+
+    private string IconColorClass => Code switch
+    {
+        404 => "text-primary",
+        403 => "text-warning",
+        _ => "text-error"
+    };
 
     protected override void OnInitialized() =>
         RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
