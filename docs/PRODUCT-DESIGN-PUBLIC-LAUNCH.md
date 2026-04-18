@@ -1,7 +1,7 @@
 # Signavex — Public Launch Product Design
 
-**Status:** Phases L1–L7 complete in code; L5–L7 and L4 pushed to main, awaiting deploy. L8 (mobile) + L9 (polish) + L10 (soft launch) remaining.
-**Date:** April 11, 2026 (doc created); L7 completed 2026-04-12
+**Status:** Phases L1–L9 complete in code (L1–L4 deployed; L5–L9 pushed to main, awaiting deploy). L10 (soft launch) is the next real step — requires deploy + manual testing by Mark.
+**Date:** April 11, 2026 (doc created); L7–L9 completed 2026-04-12
 **Goal:** Transform Signavex from "personal monitoring tool" into a polished, multi-tier product suitable for non-technical users
 
 > **Naming decision (2026-04-11):** We are keeping the existing `Free` / `Pro` role names in code and in Stripe. The `Reader` / `Investor` labels in this document describe the *product model* but are not in-code identifiers. A later rename would touch too many files and Stripe products for too little user-visible benefit. When you see "Reader" in this doc, the in-code equivalent is `Free`; when you see "Investor", it's `Pro`.
@@ -378,20 +378,20 @@ _Goal: Convert anonymous visitors into signups. Show just enough to demonstrate 
 
 _Goal: Every page works on a 375px-wide phone._
 
-- [ ] **L8.1** Test every page on Chrome dev tools mobile view (iPhone SE size)
-- [ ] **L8.2** Fix any horizontal scrolling
-- [ ] **L8.3** Verify charts (PriceChart, sparklines) scale correctly
-- [ ] **L8.4** Verify navigation works (hamburger menu? side drawer?)
-- [ ] **L8.5** Real-device test on a phone
+- [x] **L8.1** Code audit of every page for mobile layout issues. Every page already uses Tailwind mobile-first responsive utilities (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`, `flex-col sm:flex-row`, etc.). Most pages were already mobile-ready.
+- [x] **L8.2** Fixed-width audit: only two `w-[Xpx]` declarations (nav rail 72px, hidden on mobile; candidate card company name 150px, intentional truncation). No horizontal overflow sources. Added `min-w-0` to `<main>` as flex-overflow insurance.
+- [x] **L8.3** PriceChart container uses `width:100%` — responsive by default. Sparklines in Economy cards use explicit Width/Height parameters but are small enough not to overflow.
+- [x] **L8.4** **Critical fix:** the hamburger menu was using `@onclick="ToggleMobile"` which requires an interactive Blazor render mode. App is static SSR (no SignalR circuit), so the mobile drawer was effectively broken in production. Replaced with CSS-only peer/label toggle — hidden checkbox drives drawer visibility via `peer-checked:block`, hamburger icon and backdrop are `<label for>` tags.
+- [ ] **L8.5** Real-device test on a phone — needs deploy + manual walkthrough
 
 ### Phase L9 — Polish: Empty / Loading / Error States
 
 _Goal: No raw error messages or confusing blank pages._
 
-- [ ] **L9.1** Audit every page for empty state, loading state, error state
-- [ ] **L9.2** Add friendly messages per section 6
-- [ ] **L9.3** Remove any remaining stack trace exposure
-- [ ] **L9.4** Add a global error page that's friendly
+- [x] **L9.1** Every page's empty state audited and rewritten during L4. Error page (Error.razor) shipped in L3. Loading states for the static-SSR model are minimal — the page renders server-side with complete data before HTML is sent, so there's no client-side loading flash to handle. The one meaningful loading state is the Landing page spinner during the authenticated-user redirect.
+- [x] **L9.2** Friendly messages throughout — done as part of L4 (empty states on every page, conversational tone across ~70 strings).
+- [x] **L9.3** Stack trace audit done during L4.5 — clean. All catch blocks in Razor components are bare catch; no `ex.Message` or `StackTrace` surfaced anywhere.
+- [x] **L9.4** Global friendly 404/403/500 page shipped in L3 (Error.razor with `UseStatusCodePagesWithReExecute`). Hardcoded Blazor error toast text updated from "An unhandled error has occurred" to "Something went wrong. Please reload the page." for consistency.
 
 ### Phase L10 — Soft Launch
 
