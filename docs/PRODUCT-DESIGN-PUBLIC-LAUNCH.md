@@ -1,7 +1,7 @@
 # Signavex — Public Launch Product Design
 
-**Status:** Phase L1 implementation complete (pending deploy to Azure)
-**Date:** April 11, 2026
+**Status:** Phases L1–L7 complete in code; L5–L7 and L4 pushed to main, awaiting deploy. L8 (mobile) + L9 (polish) + L10 (soft launch) remaining.
+**Date:** April 11, 2026 (doc created); L7 completed 2026-04-12
 **Goal:** Transform Signavex from "personal monitoring tool" into a polished, multi-tier product suitable for non-technical users
 
 > **Naming decision (2026-04-11):** We are keeping the existing `Free` / `Pro` role names in code and in Stripe. The `Reader` / `Investor` labels in this document describe the *product model* but are not in-code identifiers. A later rename would touch too many files and Stripe products for too little user-visible benefit. When you see "Reader" in this doc, the in-code equivalent is `Free`; when you see "Investor", it's `Pro`.
@@ -366,13 +366,13 @@ _Goal: Convert anonymous visitors into signups. Show just enough to demonstrate 
 
 **Decision (2026-04-12):** Anonymous users should NOT get free access to all content. Instead, they see a teaser — a single day's brief (the latest) with a clear "Register for more" CTA. Economy data can show a similar limited preview. The teaser is the conversion hook; registration unlocks the 7-day trial (Phase L5).
 
-- [ ] **L7.1** Build the landing page at `/` — hero, features, how-it-works, pricing, footer (per section 8)
-- [ ] **L7.2** Add a **brief teaser component**: shows the latest daily brief headline + first few paragraphs, truncated, with a "Register to read the full brief and get 7 days free" CTA. This replaces the current login bounce for anonymous users hitting `/today`.
-- [ ] **L7.3** Add an **economy teaser**: show the overall health gauge and category cards (read-only snapshot), but no drill-down into individual indicators. CTA: "Register to explore all economic indicators."
-- [ ] **L7.4** Wire the teasers: anonymous users hitting `/today` or `/economy` see the teaser version, not the login redirect. Authenticated users see the full page as before. (Implementation: either a separate anonymous Razor component that renders the teaser, or conditional rendering within the existing page based on auth state.)
-- [ ] **L7.5** Add screenshots of the actual product to the landing page
-- [ ] **L7.6** Decide on pricing (placeholder: Reader $5/mo, Investor $15/mo)
-- [ ] **L7.7** Verify: visit incognito → landing page → click "Today" → see teaser → click Register → create account → 7-day trial starts → full content unlocked
+- [x] **L7.1** Landing page at `/` — Landing.razor with hero, three-feature row, how-it-works, pricing cards, footer
+- [x] **L7.2** Brief teaser on `/today` for anonymous users — shows ~700 chars of the latest brief with gradient fade + register CTA, using `TruncateBrief()` helper with paragraph-boundary preference
+- [x] **L7.3** Economy teaser on `/economy` for anonymous users — overall health gauge + category cards render, then a register CTA. Indicator grid, correlations, and recommendations are hidden.
+- [x] **L7.4** Both pages now load auth state in `OnParametersSetAsync` and branch on `_isAuthenticated`. `[Authorize]` removed from Insights.razor and Economy.razor. Landing page has "Preview today's brief" and "Check the economic outlook" links so anonymous visitors can discover the teasers.
+- [x] **L7.5** Screenshot placeholder boxes added to landing page under a "See it in action" section. TODO comment in the markup documents how to replace with actual images (1200x800 PNG/WebP, captured from deployed site, saved to `wwwroot/img/landing/`).
+- [x] **L7.6** Pricing placeholder shown: Reader $5/mo, Investor $15/mo. Finalize before soft launch.
+- [ ] **L7.7** End-to-end flow verification — needs deploy + manual walkthrough: incognito → landing page → click "Preview today's brief" → see teaser with register CTA → click Register → create account → 7-day trial auto-starts → welcome page → today (full content unlocked)
 
 ### Phase L8 — Mobile Responsive
 

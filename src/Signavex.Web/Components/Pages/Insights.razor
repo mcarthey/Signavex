@@ -1,10 +1,10 @@
 @page "/today"
 @page "/today/{DateParam?}"
-@attribute [Authorize]
 @using Markdig
 @using Signavex.Domain.Models
 @using Signavex.Web.Services
 @inject DailyBriefService BriefService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Today — Signavex</PageTitle>
 
@@ -49,8 +49,9 @@
             </p>
         </div>
     }
-    else
+    else if (_isAuthenticated)
     {
+        @* Full brief for authenticated users *@
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             @* Main content *@
             <div class="lg:col-span-9">
@@ -92,6 +93,43 @@
             </div>
         </div>
     }
+    else
+    {
+        @* Anonymous teaser — show the opening of the brief, then a paywall CTA *@
+        <div class="max-w-3xl mx-auto">
+            <div class="rounded-[var(--radius-md)] border border-outline-variant bg-surface-container p-6 sm:p-8 relative overflow-hidden">
+                <article class="prose prose-invert prose-sm sm:prose-base max-w-none
+                                prose-headings:text-on-surface prose-p:text-on-surface/90
+                                prose-strong:text-on-surface prose-a:text-primary
+                                prose-li:text-on-surface/90 prose-hr:border-outline-variant
+                                prose-h1:text-xl prose-h1:mb-4 prose-h2:text-lg prose-h2:mt-6 prose-h2:mb-3
+                                prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
+                    @((MarkupString)RenderMarkdown(TruncateBrief(_brief.Content)))
+                </article>
+
+                @* Fade overlay at the bottom of the truncated content *@
+                <div class="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-surface-container to-transparent pointer-events-none"></div>
+            </div>
+
+            @* Register CTA *@
+            <div class="mt-4 rounded-[var(--radius-md)] border-2 border-primary bg-primary/5 p-6 text-center">
+                <h3 class="text-lg font-semibold text-on-surface mb-2">Want to keep reading?</h3>
+                <p class="text-sm text-on-surface-variant mb-4 max-w-lg mx-auto">
+                    Register for free to read the full brief, browse past briefs, and get a daily summary every weekday morning. No credit card required for your 7-day trial.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                    <a href="/account/register"
+                       class="rounded-[var(--radius-sm)] bg-primary px-6 py-2.5 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90 no-underline">
+                        Start your free trial
+                    </a>
+                    <a href="/account/login"
+                       class="rounded-[var(--radius-sm)] border border-outline-variant px-6 py-2.5 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container no-underline">
+                        Sign in
+                    </a>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 <Disclaimer />
@@ -102,6 +140,7 @@
 
     private DailyBrief? _brief;
     private IReadOnlyList<DailyBrief> _recentBriefs = Array.Empty<DailyBrief>();
+    private bool _isAuthenticated;
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .DisableHtml()
@@ -110,11 +149,22 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        _recentBriefs = await BriefService.GetRecentBriefsAsync(30);
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
-        if (!string.IsNullOrEmpty(DateParam) && DateOnly.TryParse(DateParam, out var date))
+        // Anonymous users only ever see the latest brief — they don't get date navigation
+        if (_isAuthenticated)
         {
-            _brief = await BriefService.GetBriefByDateAsync(date);
+            _recentBriefs = await BriefService.GetRecentBriefsAsync(30);
+
+            if (!string.IsNullOrEmpty(DateParam) && DateOnly.TryParse(DateParam, out var date))
+            {
+                _brief = await BriefService.GetBriefByDateAsync(date);
+            }
+            else
+            {
+                _brief = await BriefService.GetLatestBriefAsync();
+            }
         }
         else
         {
@@ -125,6 +175,28 @@
     private static string RenderMarkdown(string markdown)
     {
         return Markdown.ToHtml(markdown, Pipeline);
+    }
+
+    // Truncates a brief at roughly ~700 chars, preferring a clean paragraph
+    // break if one is nearby. This is enough to show the gist of the brief
+    // (opening + first substantive paragraph) without giving away the full
+    // analysis. Tuned so the gradient fade overlay falls on partial content.
+    private static string TruncateBrief(string markdown)
+    {
+        const int target = 700;
+        if (markdown.Length <= target) return markdown;
+
+        // Prefer a paragraph break before the target length
+        int paragraphBreak = markdown.LastIndexOf("\n\n", target, StringComparison.Ordinal);
+        if (paragraphBreak > target / 2) return markdown.Substring(0, paragraphBreak);
+
+        // Fall back to a sentence end
+        int sentenceEnd = markdown.LastIndexOf(". ", target, StringComparison.Ordinal);
+        if (sentenceEnd > target / 2) return markdown.Substring(0, sentenceEnd + 1);
+
+        // Last resort: cut at word boundary
+        int wordBreak = markdown.LastIndexOf(' ', Math.Min(target, markdown.Length - 1));
+        return wordBreak > 0 ? markdown.Substring(0, wordBreak) : markdown.Substring(0, target);
     }
 
     private static string GetHealthClass(int score) => score switch

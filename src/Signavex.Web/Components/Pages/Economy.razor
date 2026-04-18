@@ -1,10 +1,10 @@
 @page "/economy"
-@attribute [Authorize]
 @using Signavex.Domain.Analysis
 @using Signavex.Domain.Interfaces
 @using Signavex.Web.Services
 @inject EconomicDashboardService EconService
 @inject IEconomicDataStore DataStore
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Economic Overview — Signavex</PageTitle>
 
@@ -54,6 +54,29 @@
             </div>
         </div>
 
+        @if (!_isAuthenticated)
+        {
+            @* Anonymous teaser — health gauge + categories are shown above; everything else is paywalled *@
+            <div class="rounded-[var(--radius-md)] border-2 border-primary bg-primary/5 p-6 text-center">
+                <h3 class="text-lg font-semibold text-on-surface mb-2">Unlock the full economic picture</h3>
+                <p class="text-sm text-on-surface-variant mb-4 max-w-lg mx-auto">
+                    You're seeing the top-level health score. Register for free to explore individual economic indicators, see how they relate, and read what it all means for your money.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                    <a href="/account/register"
+                       class="rounded-[var(--radius-sm)] bg-primary px-6 py-2.5 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90 no-underline">
+                        Start your free trial
+                    </a>
+                    <a href="/account/login"
+                       class="rounded-[var(--radius-sm)] border border-outline-variant px-6 py-2.5 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container no-underline">
+                        Sign in
+                    </a>
+                </div>
+                <p class="text-xs text-on-surface-variant mt-4">7 days free, no credit card required</p>
+            </div>
+        }
+        else
+        {
         @* Key Insights *@
         @if (_health.KeyInsights.Count > 0)
         {
@@ -143,6 +166,7 @@
                 <RecommendationPanel />
             </div>
         </div>
+        } @* end: authenticated content *@
     }
 </div>
 
@@ -153,19 +177,29 @@
     private CorrelationAnalysis? _correlations;
     private IReadOnlyList<IndicatorInterpretation> _interpretations = Array.Empty<IndicatorInterpretation>();
     private Dictionary<string, IReadOnlyList<Domain.Models.Economic.EconomicObservation>> _sparkData = new();
+    private bool _isAuthenticated;
 
     protected override async Task OnParametersSetAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
         EconService.InvalidateCache();
         _interpretations = await EconService.GetIndicatorInterpretationsAsync();
         _health = await EconService.GetHealthSummaryAsync();
-        _correlations = await EconService.GetCorrelationsAsync();
 
-        _sparkData.Clear();
-        foreach (var interp in _interpretations)
+        // Anonymous users get the health gauge + categories only — no need to load
+        // correlations or sparkline observations which back the paywalled sections.
+        if (_isAuthenticated)
         {
-            var obs = await DataStore.GetObservationsAsync(interp.SeriesId);
-            _sparkData[interp.SeriesId] = obs;
+            _correlations = await EconService.GetCorrelationsAsync();
+
+            _sparkData.Clear();
+            foreach (var interp in _interpretations)
+            {
+                var obs = await DataStore.GetObservationsAsync(interp.SeriesId);
+                _sparkData[interp.SeriesId] = obs;
+            }
         }
     }
 
