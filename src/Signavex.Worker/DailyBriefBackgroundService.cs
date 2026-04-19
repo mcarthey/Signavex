@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Options;
 using Signavex.Domain.Analysis;
+using Signavex.Domain.Configuration;
 using Signavex.Domain.Interfaces;
 using Signavex.Domain.Models;
 
@@ -12,6 +14,7 @@ public class DailyBriefBackgroundService : BackgroundService
     private readonly IDailyBriefStore _briefStore;
     private readonly IAiBriefGenerator _briefGenerator;
     private readonly IScanCommandStore _commandStore;
+    private readonly double _surfacingThreshold;
     private readonly ILogger<DailyBriefBackgroundService> _logger;
 
     public const string CommandType = "GenerateBrief";
@@ -24,6 +27,7 @@ public class DailyBriefBackgroundService : BackgroundService
         IDailyBriefStore briefStore,
         IAiBriefGenerator briefGenerator,
         IScanCommandStore commandStore,
+        IOptions<SignavexOptions> signavexOptions,
         ILogger<DailyBriefBackgroundService> logger)
     {
         _scanStateStore = scanStateStore;
@@ -32,6 +36,7 @@ public class DailyBriefBackgroundService : BackgroundService
         _briefStore = briefStore;
         _briefGenerator = briefGenerator;
         _commandStore = commandStore;
+        _surfacingThreshold = signavexOptions.Value.SurfacingThreshold;
         _logger = logger;
     }
 
@@ -130,8 +135,25 @@ public class DailyBriefBackgroundService : BackgroundService
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        // Load scan data
+        // Load scan data. IScanStateStore returns EVERY evaluated stock as a
+        // candidate regardless of score (the store is intentionally unfiltered
+        // so consumers like Backtest can see the full picture). For the brief,
+        // we only want stocks that actually met the surfacing threshold —
+        // otherwise the prompt tells Claude "N candidates surfaced" with N
+        // equal to the full universe, and lists the top 10 even when none
+        // cleared the cutoff. Claude then faithfully writes "surfaced 10
+        // stocks" even on a 0-pick day. Filter here so the prompt reflects
+        // what users actually see on the Stock Picks page.
         var latestScan = await _scanStateStore.LoadLatestResultAsync(ct);
+        if (latestScan is not null)
+        {
+            var surfaced = latestScan.Candidates
+                .Where(c => c.FinalScore >= _surfacingThreshold)
+                .ToList()
+                .AsReadOnly();
+            latestScan = latestScan with { Candidates = surfaced };
+        }
+
         var recentScans = await _scanHistoryStore.GetRecentScansAsync(30, ct);
         var multiplierTrend = await _scanHistoryStore.GetMarketMultiplierTrendAsync(30, ct);
 
