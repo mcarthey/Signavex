@@ -70,6 +70,11 @@ if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientS
         {
             options.ClientId = googleClientId;
             options.ClientSecret = googleClientSecret;
+            // Explicit: sign the external login result into the scheme that
+            // SignInManager.GetExternalLoginInfoAsync() reads from. Relying on
+            // the AddIdentity-provided DefaultSignInScheme is flaky across
+            // .NET versions — being explicit avoids mysterious null returns.
+            options.SignInScheme = IdentityConstants.ExternalScheme;
         });
 }
 
@@ -163,11 +168,14 @@ app.MapHealthChecks("/health");
 // shows the marketing landing page for anonymous users and redirects
 // authenticated users to /today (with onboarding/trial checks).
 
-// Google OAuth: initiate the external login challenge
-app.MapGet("/account/login-google", (HttpContext ctx) =>
+// Google OAuth: initiate the external login challenge. Uses SignInManager's
+// ConfigureExternalAuthenticationProperties helper so the properties include
+// the LoginProvider key that GetExternalLoginInfoAsync needs when the callback
+// runs — without this, the callback receives the cookie but can't reconstruct
+// the ExternalLoginInfo and returns null.
+app.MapGet("/account/login-google", (SignInManager<ApplicationUser> signInManager) =>
 {
-    var redirectUrl = "/account/google-callback";
-    var properties = new Microsoft.AspNetCore.Authentication.AuthenticationProperties { RedirectUri = redirectUrl };
+    var properties = signInManager.ConfigureExternalAuthenticationProperties("Google", "/account/google-callback");
     return Results.Challenge(properties, ["Google"]);
 });
 
