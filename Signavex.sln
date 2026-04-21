@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Signavex.Domain.Tests", "te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Signavex.Worker.Tests", "tests\Signavex.Worker.Tests\Signavex.Worker.Tests.csproj", "{512277B6-DC45-412C-8E68-738A024156EB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Signavex.Functions", "src\Signavex.Functions\Signavex.Functions.csproj", "{90733A2C-DF6A-4A88-9865-382888CCE445}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -171,6 +173,18 @@ Global
 		{512277B6-DC45-412C-8E68-738A024156EB}.Release|x64.Build.0 = Release|Any CPU
 		{512277B6-DC45-412C-8E68-738A024156EB}.Release|x86.ActiveCfg = Release|Any CPU
 		{512277B6-DC45-412C-8E68-738A024156EB}.Release|x86.Build.0 = Release|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Debug|x64.Build.0 = Debug|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Debug|x86.Build.0 = Debug|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Release|x64.ActiveCfg = Release|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Release|x64.Build.0 = Release|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Release|x86.ActiveCfg = Release|Any CPU
+		{90733A2C-DF6A-4A88-9865-382888CCE445}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -187,5 +201,6 @@ Global
 		{689B91D1-EC88-42D7-A6E6-A353CF931883} = {C3F7B963-21DA-4201-B7CA-DC88BAC59E3B}
 		{3C828493-73A6-4E1F-9BBD-32E357975C81} = {BE3CA679-8C3B-4352-AA1E-BD51917F58F5}
 		{512277B6-DC45-412C-8E68-738A024156EB} = {BE3CA679-8C3B-4352-AA1E-BD51917F58F5}
+		{90733A2C-DF6A-4A88-9865-382888CCE445} = {C3F7B963-21DA-4201-B7CA-DC88BAC59E3B}
 	EndGlobalSection
 EndGlobal
