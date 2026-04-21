@@ -95,6 +95,25 @@ builder.Services.AddSingleton<ApiKeyValidationService>();
 builder.Services.AddSingleton<EconomicDashboardService>();
 builder.Services.AddSingleton<DailyBriefService>();
 
+// HttpClient for calling Azure Functions admin endpoints. Named client
+// "functions" carries the base URL + admin key header on every request.
+// Base URL + key are supplied by Terraform via Functions__Url + Functions__AdminKey.
+builder.Services.AddHttpClient("functions", (sp, client) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["Functions:Url"];
+    if (!string.IsNullOrEmpty(baseUrl))
+    {
+        client.BaseAddress = new Uri(baseUrl);
+    }
+    var adminKey = config["Functions:AdminKey"];
+    if (!string.IsNullOrEmpty(adminKey))
+    {
+        client.DefaultRequestHeaders.Add("x-signavex-admin-key", adminKey);
+    }
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
+
 // Authorization policies
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ProRequired", policy => policy.RequireRole("Pro", "Admin"));
@@ -387,21 +406,47 @@ app.MapPost("/account/billing-portal", async (
 // All expensive operations live here. Non-admin users have no way to trigger them.
 // =============================================================================
 
-app.MapPost("/admin/scan", async (ScanDashboardService dashboard) =>
+// Admin endpoints that delegate to Azure Functions (Worker replacement).
+// Each handler POSTs to the corresponding Function HTTP trigger. The named
+// "functions" HttpClient already carries the base URL + admin key header.
+// Fire-and-forget: we return the redirect immediately and let the Function
+// run in the background — the admin page shows a "started" banner.
+app.MapPost("/admin/scan", async (
+    IHttpClientFactory httpFactory,
+    ILogger<Program> logger) =>
 {
-    await dashboard.RequestScanAsync();
+    var client = httpFactory.CreateClient("functions");
+    _ = Task.Run(async () =>
+    {
+        try { await client.PostAsync("api/ops/scan", content: null); }
+        catch (Exception ex) { logger.LogError(ex, "Failed to invoke Functions scan"); }
+    });
     return Results.Redirect("/admin?action=scan");
 }).RequireAuthorization(policy => policy.RequireRole("Admin"));
 
-app.MapPost("/admin/sync-economic", async (EconomicDashboardService econ) =>
+app.MapPost("/admin/sync-economic", async (
+    IHttpClientFactory httpFactory,
+    ILogger<Program> logger) =>
 {
-    await econ.RequestSyncAsync();
+    var client = httpFactory.CreateClient("functions");
+    _ = Task.Run(async () =>
+    {
+        try { await client.PostAsync("api/ops/sync-economic", content: null); }
+        catch (Exception ex) { logger.LogError(ex, "Failed to invoke Functions sync-economic"); }
+    });
     return Results.Redirect("/admin?action=sync-economic");
 }).RequireAuthorization(policy => policy.RequireRole("Admin"));
 
-app.MapPost("/admin/generate-brief", async (DailyBriefService briefService) =>
+app.MapPost("/admin/generate-brief", async (
+    IHttpClientFactory httpFactory,
+    ILogger<Program> logger) =>
 {
-    await briefService.RequestGenerationAsync();
+    var client = httpFactory.CreateClient("functions");
+    _ = Task.Run(async () =>
+    {
+        try { await client.PostAsync("api/ops/generate-brief", content: null); }
+        catch (Exception ex) { logger.LogError(ex, "Failed to invoke Functions generate-brief"); }
+    });
     return Results.Redirect("/admin?action=generate-brief");
 }).RequireAuthorization(policy => policy.RequireRole("Admin"));
 
