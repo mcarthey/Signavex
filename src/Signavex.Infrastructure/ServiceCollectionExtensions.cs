@@ -59,15 +59,29 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<RateLimiter>(),
                 sp.GetRequiredService<ILogger<PolygonRateLimitingHandler>>()));
 
-        services.AddHttpClient<IMarketDataProvider, PolygonMarketDataProvider>(client =>
+        // Polygon market data — register the raw provider (with rate-limit handler)
+        // then wrap with in-memory caching. CandidateDetail pages make 3 Polygon
+        // calls each; caching eliminates duplicate calls for repeat ticker views
+        // within a 15-minute window.
+        services.AddHttpClient<PolygonMarketDataProvider>(client =>
         {
             client.BaseAddress = new Uri(providerOptions.Polygon.BaseUrl);
         }).AddHttpMessageHandler<PolygonRateLimitingHandler>();
+        services.AddScoped<IMarketDataProvider>(sp =>
+            new CachedMarketDataProvider(
+                sp.GetRequiredService<PolygonMarketDataProvider>(),
+                sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger<CachedMarketDataProvider>()));
 
-        services.AddHttpClient<INewsDataProvider, PolygonNewsProvider>(client =>
+        services.AddHttpClient<PolygonNewsProvider>(client =>
         {
             client.BaseAddress = new Uri(providerOptions.Polygon.BaseUrl);
         }).AddHttpMessageHandler<PolygonRateLimitingHandler>();
+        services.AddScoped<INewsDataProvider>(sp =>
+            new CachedNewsProvider(
+                sp.GetRequiredService<PolygonNewsProvider>(),
+                sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger<CachedNewsProvider>()));
 
         // Register AlphaVantage as the inner provider, then wrap with DB-backed caching decorator
         services.AddHttpClient<AlphaVantageFundamentalsProvider>(client =>
