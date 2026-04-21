@@ -1,8 +1,12 @@
-// Thin progress bar at the top of the viewport that signals in-flight
-// navigation during Blazor enhanced nav transitions and form submissions.
-// Pattern: start on any same-origin <a> click or <form> submit, finish on
-// Blazor's `enhancedload` event. A safety timeout hides the bar if the
-// event never fires (e.g. a non-enhanced full page load).
+// Progress bar at the top of the viewport that signals in-flight navigation
+// during Blazor enhanced nav transitions and form submissions.
+//
+// Timing:
+//   0 → 0.8s: animate 0% → 70% (cubic-bezier, looks like "working on it")
+//   0.8s on: creep toward 90% over ~6s (reassures during slow loads, esp. cold starts)
+//   90% on:  pulse subtly (just opacity) — the nav is taking a while
+//   enhancedload fires: jump to 100%, fade out
+//   45s safety timeout: give up and fade, in case enhancedload never fires
 //
 // Blazor enhanced nav morphs <body>'s DOM tree on navigation, which would
 // detach a bar element appended to body. We attach to documentElement and
@@ -13,6 +17,8 @@
 
     let bar;
     let safetyTimeoutId;
+    let creepTimeoutId;
+    let pulseIntervalId;
     let startTimestamp;
 
     function createBar() {
@@ -23,11 +29,11 @@
             'position:fixed',
             'top:0',
             'left:0',
-            'height:3px',
+            'height:4px',
             'width:0',
             'z-index:99999',
             'background:var(--color-primary, #4f46e5)',
-            'box-shadow:0 0 10px 0 var(--color-primary, #4f46e5)',
+            'box-shadow:0 0 12px 1px var(--color-primary, #4f46e5), 0 0 4px 0 var(--color-primary, #4f46e5)',
             'opacity:0',
             'transition:width 0.25s ease-out, opacity 0.3s ease-out',
             'pointer-events:none'
@@ -42,38 +48,69 @@
         return bar;
     }
 
+    function clearTimers() {
+        clearTimeout(safetyTimeoutId);
+        clearTimeout(creepTimeoutId);
+        clearInterval(pulseIntervalId);
+        safetyTimeoutId = creepTimeoutId = pulseIntervalId = 0;
+    }
+
+    function scheduleCreep() {
+        // After the initial 0.8s burst to 70%, slowly creep to 90% over 6s.
+        creepTimeoutId = setTimeout(() => {
+            const b = ensureBar();
+            b.style.transition = 'width 6s linear, opacity 0.3s ease-out';
+            b.style.width = '90%';
+
+            // After the creep finishes, pulse opacity to signal "still working".
+            creepTimeoutId = setTimeout(() => {
+                let down = true;
+                pulseIntervalId = setInterval(() => {
+                    const b2 = ensureBar();
+                    b2.style.transition = 'opacity 0.6s ease-in-out';
+                    b2.style.opacity = down ? '0.55' : '1';
+                    down = !down;
+                }, 700);
+            }, 6000);
+        }, 800);
+    }
+
     function start() {
+        clearTimers();
         const b = ensureBar();
         startTimestamp = performance.now();
+
         // Reset for repeat starts
         b.style.transition = 'none';
         b.style.width = '0';
         b.style.opacity = '1';
-        // Force reflow so the 0 → 80% transition actually animates
+        // Force reflow so the 0 → 70% transition actually animates
         void b.offsetWidth;
         b.style.transition = 'width 0.8s cubic-bezier(0.1, 0.9, 0.3, 1), opacity 0.3s ease-out';
-        b.style.width = '80%';
+        b.style.width = '70%';
 
-        clearTimeout(safetyTimeoutId);
-        // If enhancedload never fires (rare — full page load, or error),
-        // hide the bar after 10s so it doesn't sit there forever.
-        safetyTimeoutId = setTimeout(doFinish, 10000);
+        scheduleCreep();
+
+        // If enhancedload never fires (full page load, error, or a genuinely
+        // very slow response), give up after 45s so the bar doesn't linger.
+        safetyTimeoutId = setTimeout(doFinish, 45000);
     }
 
     function doFinish() {
+        clearTimers();
         const b = ensureBar();
         b.style.transition = 'width 0.2s ease-out, opacity 0.3s ease-out 0.15s';
+        b.style.opacity = '1';
         b.style.width = '100%';
         setTimeout(() => {
-            // Re-check connectedness — bar may have been recreated between calls.
             const b2 = ensureBar();
             b2.style.opacity = '0';
             setTimeout(() => {
                 const b3 = ensureBar();
+                b3.style.transition = 'none';
                 b3.style.width = '0';
             }, 350);
         }, 150);
-        clearTimeout(safetyTimeoutId);
     }
 
     function done() {
