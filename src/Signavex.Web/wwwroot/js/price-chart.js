@@ -304,3 +304,95 @@ function formatVolume(vol) {
     if (vol >= 1e3) return (vol / 1e3).toFixed(1) + 'K';
     return vol.toString();
 }
+
+// ─── Auto-init & Blazor enhanced-navigation integration ─────────────────
+//
+// Blazor static SSR with enhanced navigation swaps page content via fetch()
+// rather than a full page reload. <script> tags inside the newly-fetched
+// HTML are NOT re-executed — which is why inline init scripts inside Razor
+// components silently fail after navigating to a new page.
+//
+// The fix: on both initial load AND on Blazor's `enhancedload` event, scan
+// the DOM for chart containers and (re-)initialize them. The containers
+// carry their config as data attributes so we don't need inline scripts.
+//
+// Ref: https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/routing#enhanced-navigation-and-form-handling
+window.priceChart.initAll = function () {
+    if (typeof LightweightCharts === 'undefined') {
+        // Lightweight-charts CDN hasn't loaded yet — try again shortly.
+        setTimeout(window.priceChart.initAll, 50);
+        return;
+    }
+
+    // Destroy any stale instances whose containers are no longer in the DOM
+    // (happens after enhanced nav replaces body content).
+    Object.keys(chartInstances).forEach(id => {
+        if (!document.getElementById(id)) {
+            const instance = chartInstances[id];
+            if (instance._resizeObserver) instance._resizeObserver.disconnect();
+            if (instance._tooltipEl && instance._tooltipEl.parentNode) instance._tooltipEl.remove();
+            try { instance.chart.remove(); } catch (_) { /* chart may already be detached */ }
+            delete chartInstances[id];
+        }
+    });
+
+    document.querySelectorAll('[data-price-chart]').forEach(container => {
+        const id = container.id;
+        if (!id) return;
+        // Already initialized? Skip.
+        if (chartInstances[id]) return;
+
+        const configRaw = container.getAttribute('data-chart-config');
+        const height = parseInt(container.getAttribute('data-chart-height') || '400', 10);
+        if (!configRaw) return;
+
+        let data;
+        try {
+            data = JSON.parse(configRaw);
+        } catch (e) {
+            console.error('Invalid chart config JSON on', id, e);
+            return;
+        }
+
+        window.priceChart.create(id, data, { height, mode: 'candlestick' });
+
+        // Wire up the candlestick/line toggle buttons that sit above the chart.
+        const toggle = document.getElementById(id + '-toggle');
+        if (toggle) {
+            toggle.querySelectorAll('.chart-mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const mode = btn.getAttribute('data-mode');
+                    window.priceChart.switchMode(id, mode);
+                    toggle.querySelectorAll('.chart-mode-btn').forEach(b => {
+                        if (b.getAttribute('data-mode') === mode) {
+                            b.classList.remove('text-on-surface-variant', 'hover:text-on-surface');
+                            b.classList.add('bg-primary', 'text-on-primary');
+                        } else {
+                            b.classList.remove('bg-primary', 'text-on-primary');
+                            b.classList.add('text-on-surface-variant', 'hover:text-on-surface');
+                        }
+                    });
+                });
+            });
+        }
+    });
+};
+
+// Run on initial load (full page refresh or direct URL navigation).
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', window.priceChart.initAll);
+} else {
+    window.priceChart.initAll();
+}
+
+// Re-run after every Blazor enhanced navigation. Blazor exposes this event
+// on the global `Blazor` object, which may not be defined yet when this
+// script loads — defer registration until Blazor is ready.
+function registerBlazorHook() {
+    if (typeof Blazor === 'undefined' || typeof Blazor.addEventListener !== 'function') {
+        setTimeout(registerBlazorHook, 50);
+        return;
+    }
+    Blazor.addEventListener('enhancedload', window.priceChart.initAll);
+}
+registerBlazorHook();

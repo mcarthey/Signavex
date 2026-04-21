@@ -59,42 +59,15 @@
         }
     </div>
 
-    @* Chart container *@
-    <div id="@_containerId" style="width:100%; height:@(Height)px;"></div>
-
-    @* Embedded data + initialization script (no Blazor JS interop needed) *@
-    <script>
-        (function() {
-            var data = @((MarkupString)_jsonData);
-            var containerId = '@_containerId';
-            function init() {
-                if (typeof window.priceChart === 'undefined' || typeof LightweightCharts === 'undefined') {
-                    setTimeout(init, 50);
-                    return;
-                }
-                window.priceChart.create(containerId, data, { height: @Height, mode: 'candlestick' });
-                var toggle = document.getElementById(containerId + '-toggle');
-                if (toggle) {
-                    toggle.querySelectorAll('.chart-mode-btn').forEach(function(btn) {
-                        btn.addEventListener('click', function() {
-                            var mode = btn.getAttribute('data-mode');
-                            window.priceChart.switchMode(containerId, mode);
-                            toggle.querySelectorAll('.chart-mode-btn').forEach(function(b) {
-                                if (b.getAttribute('data-mode') === mode) {
-                                    b.classList.remove('text-on-surface-variant', 'hover:text-on-surface');
-                                    b.classList.add('bg-primary', 'text-on-primary');
-                                } else {
-                                    b.classList.remove('bg-primary', 'text-on-primary');
-                                    b.classList.add('text-on-surface-variant', 'hover:text-on-surface');
-                                }
-                            });
-                        });
-                    });
-                }
-            }
-            init();
-        })();
-    </script>
+    @* Chart container — price-chart.js scans for [data-price-chart] elements
+       on initial load AND on Blazor enhancedload, so this works whether the
+       page was loaded via full refresh or enhanced navigation. Inline <script>
+       tags do not execute after enhanced nav in Blazor static SSR. *@
+    <div id="@_containerId"
+         data-price-chart
+         data-chart-config="@_jsonData"
+         data-chart-height="@Height"
+         style="width:100%; height:@(Height)px;"></div>
 
     @* Candlestick reading guide *@
     <div class="px-4 py-2 border-t border-outline-variant bg-surface-container/30">
