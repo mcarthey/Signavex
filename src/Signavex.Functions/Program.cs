@@ -1,12 +1,10 @@
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Signavex.Domain.Configuration;
 using Signavex.Engine;
 using Signavex.Infrastructure;
-using Signavex.Infrastructure.Persistence;
 using Signavex.Signals;
 using Signavex.Functions.Orchestrators;
 using Signavex.Functions.Security;
@@ -54,14 +52,9 @@ var host = new HostBuilder()
     })
     .Build();
 
-// Initialize database — migrations handle all schema and seed data.
-// Safe to run from multiple processes; EF's MigrateAsync is idempotent.
-using (var scope = host.Services.CreateScope())
-{
-    await using var db = await scope.ServiceProvider
-        .GetRequiredService<IDbContextFactory<SignavexDbContext>>()
-        .CreateDbContextAsync();
-    await db.Database.MigrateAsync();
-}
+// NOTE: DB migrations are handled by the Web app on startup. Functions
+// do not run MigrateAsync — the schema is guaranteed to exist before any
+// function fires because the Web app always boots first (it's the entry
+// point for both user traffic and admin HTTP triggers).
 
 await host.RunAsync();
