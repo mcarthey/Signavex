@@ -39,7 +39,7 @@ public class BriefFunctions
     // Admin-triggered brief generation via HTTP
     [Function("BriefAdminHttp")]
     public async Task<IActionResult> BriefAdminHttp(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/generate-brief")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ops/generate-brief")] HttpRequest req,
         CancellationToken ct)
     {
         if (!_authorizer.Authorize(req))

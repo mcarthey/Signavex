@@ -36,7 +36,7 @@ public class EconomicSyncFunctions
     // Admin-triggered economic sync via HTTP
     [Function("EconomicSyncAdminHttp")]
     public async Task<IActionResult> EconomicSyncAdminHttp(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/sync-economic")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ops/sync-economic")] HttpRequest req,
         CancellationToken ct)
     {
         if (!_authorizer.Authorize(req))

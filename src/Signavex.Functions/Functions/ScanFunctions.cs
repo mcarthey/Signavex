@@ -53,7 +53,7 @@ public class ScanFunctions
     // Admin-triggered scan via HTTP from the Web app
     [Function("ScanAdminHttp")]
     public async Task<IActionResult> ScanAdminHttp(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "admin/scan")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ops/scan")] HttpRequest req,
         CancellationToken ct)
     {
         if (!_authorizer.Authorize(req))
