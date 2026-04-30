@@ -50,7 +50,7 @@ public class PolygonNewsProvider : INewsDataProvider
                     r.Description,
                     r.Publisher?.Name,
                     DateTime.TryParse(r.PublishedUtc, out var published) ? published.ToUniversalTime() : DateTime.UtcNow,
-                    null // Polygon does not provide sentiment scores
+                    ExtractSentimentForTicker(r.Insights, ticker)
                 ));
         }
         catch (Exception ex)
@@ -58,5 +58,19 @@ public class PolygonNewsProvider : INewsDataProvider
             _logger.LogWarning(ex, "Failed to fetch news for {Ticker}", ticker);
             return Enumerable.Empty<NewsItem>();
         }
+    }
+
+    internal static double? ExtractSentimentForTicker(List<PolygonNewsInsight>? insights, string ticker)
+    {
+        var match = insights?.FirstOrDefault(i =>
+            string.Equals(i.Ticker, ticker, StringComparison.OrdinalIgnoreCase));
+
+        return match?.Sentiment?.ToLowerInvariant() switch
+        {
+            "positive" => 0.7,
+            "negative" => -0.7,
+            "neutral" => 0.0,
+            _ => null
+        };
     }
 }

@@ -27,10 +27,25 @@ internal class PolygonNewsResult
 
     [JsonPropertyName("publisher")]
     public PolygonPublisher? Publisher { get; set; }
+
+    [JsonPropertyName("insights")]
+    public List<PolygonNewsInsight>? Insights { get; set; }
 }
 
 internal class PolygonPublisher
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
+}
+
+internal class PolygonNewsInsight
+{
+    [JsonPropertyName("ticker")]
+    public string? Ticker { get; set; }
+
+    [JsonPropertyName("sentiment")]
+    public string? Sentiment { get; set; }
+
+    [JsonPropertyName("sentiment_reasoning")]
+    public string? SentimentReasoning { get; set; }
 }

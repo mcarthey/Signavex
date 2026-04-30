@@ -62,7 +62,7 @@ public class PolygonNewsProviderTests
     }
 
     [Fact]
-    public async Task GetRecentNewsAsync_SentimentScore_AlwaysNull()
+    public async Task GetRecentNewsAsync_NoInsights_SentimentScoreNull()
     {
         var json = """
         {
@@ -82,6 +82,87 @@ public class PolygonNewsProviderTests
         var result = (await provider.GetRecentNewsAsync("AAPL", 5)).ToList();
 
         Assert.Single(result);
+        Assert.Null(result[0].SentimentScore);
+    }
+
+    [Fact]
+    public async Task GetRecentNewsAsync_PositiveInsight_PopulatesSentiment()
+    {
+        var json = """
+        {
+            "status": "OK",
+            "results": [
+                {
+                    "title": "Apple Beats Estimates",
+                    "published_utc": "2023-01-20T14:30:00Z",
+                    "tickers": ["AAPL"],
+                    "publisher": { "name": "Reuters" },
+                    "insights": [
+                        { "ticker": "AAPL", "sentiment": "positive", "sentiment_reasoning": "Strong revenue growth." }
+                    ]
+                }
+            ]
+        }
+        """;
+        var provider = CreateProvider(new MockHttpMessageHandler(json));
+
+        var result = (await provider.GetRecentNewsAsync("AAPL", 5)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal(0.7, result[0].SentimentScore);
+    }
+
+    [Fact]
+    public async Task GetRecentNewsAsync_NegativeInsight_PopulatesSentiment()
+    {
+        var json = """
+        {
+            "status": "OK",
+            "results": [
+                {
+                    "title": "Apple Misses Estimates",
+                    "published_utc": "2023-01-20T14:30:00Z",
+                    "tickers": ["AAPL"],
+                    "publisher": { "name": "Reuters" },
+                    "insights": [
+                        { "ticker": "AAPL", "sentiment": "negative", "sentiment_reasoning": "Slowing growth." }
+                    ]
+                }
+            ]
+        }
+        """;
+        var provider = CreateProvider(new MockHttpMessageHandler(json));
+
+        var result = (await provider.GetRecentNewsAsync("AAPL", 5)).ToList();
+
+        Assert.Equal(-0.7, result[0].SentimentScore);
+    }
+
+    [Fact]
+    public async Task GetRecentNewsAsync_InsightForDifferentTicker_SentimentNull()
+    {
+        // Article mentions both AAPL and MSFT but only has insight for MSFT.
+        // When fetching for AAPL, we should not pick up MSFT's sentiment.
+        var json = """
+        {
+            "status": "OK",
+            "results": [
+                {
+                    "title": "Tech Roundup",
+                    "published_utc": "2023-01-20T14:30:00Z",
+                    "tickers": ["AAPL", "MSFT"],
+                    "publisher": { "name": "Bloomberg" },
+                    "insights": [
+                        { "ticker": "MSFT", "sentiment": "positive", "sentiment_reasoning": "AI growth." }
+                    ]
+                }
+            ]
+        }
+        """;
+        var provider = CreateProvider(new MockHttpMessageHandler(json));
+
+        var result = (await provider.GetRecentNewsAsync("AAPL", 5)).ToList();
+
         Assert.Null(result[0].SentimentScore);
     }
 
