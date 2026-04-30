@@ -30,14 +30,15 @@ public class AlphaVantageFundamentalsProvider : IFundamentalsProvider
         {
             var overview = await FetchOverviewAsync(ticker);
             var earnings = await FetchEarningsAsync(ticker);
+            var balanceSheet = await FetchBalanceSheetAsync(ticker);
 
             var latestQuarter = earnings?.QuarterlyEarnings?.FirstOrDefault();
 
             return new FundamentalsData(
                 Ticker: ticker,
                 PeRatio: ParseDouble(overview?.PERatio),
-                IndustryPeRatio: null, // Not available from Alpha Vantage
-                DebtToEquityRatio: null, // Not available from OVERVIEW endpoint
+                IndustryPeRatio: SectorPeAverages.Lookup(overview?.Sector),
+                DebtToEquityRatio: ComputeDebtToEquity(balanceSheet),
                 EpsCurrentQuarter: ParseDouble(latestQuarter?.ReportedEPS),
                 EpsEstimateCurrentQuarter: ParseDouble(latestQuarter?.EstimatedEPS),
                 EpsPreviousYear: ParseDouble(overview?.EPS),
@@ -50,6 +51,21 @@ public class AlphaVantageFundamentalsProvider : IFundamentalsProvider
             _logger.LogWarning(ex, "Failed to fetch fundamentals for {Ticker}", ticker);
             return new FundamentalsData(ticker, null, null, null, null, null, null, null, DateTime.UtcNow);
         }
+    }
+
+    internal static double? ComputeDebtToEquity(AlphaVantageBalanceSheetResponse? balanceSheet)
+    {
+        var latest = balanceSheet?.AnnualReports?.FirstOrDefault();
+        if (latest is null)
+            return null;
+
+        var liabilities = ParseDouble(latest.TotalLiabilities);
+        var equity = ParseDouble(latest.TotalShareholderEquity);
+
+        if (liabilities is null || equity is null || equity.Value == 0)
+            return null;
+
+        return liabilities.Value / equity.Value;
     }
 
     private async Task<AlphaVantageOverviewResponse?> FetchOverviewAsync(string ticker)
@@ -70,6 +86,16 @@ public class AlphaVantageFundamentalsProvider : IFundamentalsProvider
 
         var json = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<AlphaVantageEarningsResponse>(json);
+    }
+
+    private async Task<AlphaVantageBalanceSheetResponse?> FetchBalanceSheetAsync(string ticker)
+    {
+        var url = $"/query?function=BALANCE_SHEET&symbol={ticker}&apikey={_options.AlphaVantage.ApiKey}";
+        var response = await _httpClient.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<AlphaVantageBalanceSheetResponse>(json);
     }
 
     internal static string? DeriveAnalystRating(AlphaVantageOverviewResponse? overview)

@@ -39,6 +39,8 @@ public class AlphaVantageFundamentalsProviderTests
     }
     """;
 
+    private const string EmptyBalanceSheetJson = """{ "annualReports": [] }""";
+
     private static AlphaVantageFundamentalsProvider CreateProvider(SequentialMockHttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://www.alphavantage.co") };
@@ -50,7 +52,8 @@ public class AlphaVantageFundamentalsProviderTests
     {
         var handler = new SequentialMockHttpMessageHandler(
             (ValidOverviewJson, HttpStatusCode.OK),
-            (ValidEarningsJson, HttpStatusCode.OK));
+            (ValidEarningsJson, HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("AAPL");
@@ -68,7 +71,8 @@ public class AlphaVantageFundamentalsProviderTests
     {
         var handler = new SequentialMockHttpMessageHandler(
             ("""{ "PERatio": "25.50" }""", HttpStatusCode.OK),
-            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK));
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("MSFT");
@@ -89,7 +93,8 @@ public class AlphaVantageFundamentalsProviderTests
                 "AnalystRatingStrongSell": "0"
             }
             """, HttpStatusCode.OK),
-            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK));
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("AAPL");
@@ -110,7 +115,8 @@ public class AlphaVantageFundamentalsProviderTests
                 "AnalystRatingStrongSell": "1"
             }
             """, HttpStatusCode.OK),
-            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK));
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("AAPL");
@@ -131,7 +137,8 @@ public class AlphaVantageFundamentalsProviderTests
                 "AnalystRatingStrongSell": "0"
             }
             """, HttpStatusCode.OK),
-            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK));
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("AAPL");
@@ -144,7 +151,8 @@ public class AlphaVantageFundamentalsProviderTests
     {
         var handler = new SequentialMockHttpMessageHandler(
             ("""{ "PERatio": "20.0" }""", HttpStatusCode.OK),
-            (ValidEarningsJson, HttpStatusCode.OK));
+            (ValidEarningsJson, HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("AAPL");
@@ -158,7 +166,8 @@ public class AlphaVantageFundamentalsProviderTests
     {
         var handler = new SequentialMockHttpMessageHandler(
             ("""{ "PERatio": "None", "EPS": "-" }""", HttpStatusCode.OK),
-            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK));
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("XYZ");
@@ -183,19 +192,118 @@ public class AlphaVantageFundamentalsProviderTests
         Assert.Null(result.PeRatio);
         Assert.Null(result.EpsCurrentQuarter);
         Assert.Null(result.AnalystRating);
+        Assert.Null(result.DebtToEquityRatio);
+        Assert.Null(result.IndustryPeRatio);
     }
 
     [Fact]
-    public async Task GetFundamentalsAsync_IndustryPeRatio_AlwaysNull()
+    public async Task GetFundamentalsAsync_NoSector_IndustryPeRatioNull()
     {
         var handler = new SequentialMockHttpMessageHandler(
             (ValidOverviewJson, HttpStatusCode.OK),
-            (ValidEarningsJson, HttpStatusCode.OK));
+            (ValidEarningsJson, HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
         var result = await provider.GetFundamentalsAsync("AAPL");
 
         Assert.Null(result.IndustryPeRatio);
+    }
+
+    [Fact]
+    public async Task GetFundamentalsAsync_KnownSector_PopulatesIndustryPeRatio()
+    {
+        var handler = new SequentialMockHttpMessageHandler(
+            ("""{ "Symbol": "AAPL", "Sector": "TECHNOLOGY", "PERatio": "28.50" }""", HttpStatusCode.OK),
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
+        var provider = CreateProvider(handler);
+
+        var result = await provider.GetFundamentalsAsync("AAPL");
+
+        Assert.Equal(28.0, result.IndustryPeRatio);
+    }
+
+    [Fact]
+    public async Task GetFundamentalsAsync_UnknownSector_PopulatesFallback()
+    {
+        var handler = new SequentialMockHttpMessageHandler(
+            ("""{ "Sector": "FAKE_SECTOR" }""", HttpStatusCode.OK),
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            (EmptyBalanceSheetJson, HttpStatusCode.OK));
+        var provider = CreateProvider(handler);
+
+        var result = await provider.GetFundamentalsAsync("XYZ");
+
+        Assert.Equal(20.0, result.IndustryPeRatio);
+    }
+
+    [Fact]
+    public async Task GetFundamentalsAsync_BalanceSheet_ComputesDebtToEquity()
+    {
+        var handler = new SequentialMockHttpMessageHandler(
+            ("""{ "PERatio": "20" }""", HttpStatusCode.OK),
+            ("""{ "quarterlyEarnings": [] }""", HttpStatusCode.OK),
+            ("""
+            {
+                "symbol": "AAPL",
+                "annualReports": [
+                    {
+                        "fiscalDateEnding": "2024-09-28",
+                        "totalLiabilities": "300000000",
+                        "totalShareholderEquity": "150000000"
+                    }
+                ]
+            }
+            """, HttpStatusCode.OK));
+        var provider = CreateProvider(handler);
+
+        var result = await provider.GetFundamentalsAsync("AAPL");
+
+        Assert.Equal(2.0, result.DebtToEquityRatio);
+    }
+
+    [Fact]
+    public void ComputeDebtToEquity_NullBalanceSheet_ReturnsNull()
+    {
+        var result = AlphaVantageFundamentalsProvider.ComputeDebtToEquity(null);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ComputeDebtToEquity_EmptyAnnualReports_ReturnsNull()
+    {
+        var balanceSheet = new AlphaVantageBalanceSheetResponse { AnnualReports = new List<AlphaVantageBalanceSheetReport>() };
+        var result = AlphaVantageFundamentalsProvider.ComputeDebtToEquity(balanceSheet);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ComputeDebtToEquity_ZeroEquity_ReturnsNull()
+    {
+        var balanceSheet = new AlphaVantageBalanceSheetResponse
+        {
+            AnnualReports = new List<AlphaVantageBalanceSheetReport>
+            {
+                new() { TotalLiabilities = "100", TotalShareholderEquity = "0" }
+            }
+        };
+        var result = AlphaVantageFundamentalsProvider.ComputeDebtToEquity(balanceSheet);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ComputeDebtToEquity_NoneOrDash_ReturnsNull()
+    {
+        var balanceSheet = new AlphaVantageBalanceSheetResponse
+        {
+            AnnualReports = new List<AlphaVantageBalanceSheetReport>
+            {
+                new() { TotalLiabilities = "None", TotalShareholderEquity = "100" }
+            }
+        };
+        var result = AlphaVantageFundamentalsProvider.ComputeDebtToEquity(balanceSheet);
+        Assert.Null(result);
     }
 
     [Fact]

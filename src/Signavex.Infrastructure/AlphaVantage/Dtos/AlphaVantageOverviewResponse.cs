@@ -7,6 +7,9 @@ internal class AlphaVantageOverviewResponse
     [JsonPropertyName("Symbol")]
     public string? Symbol { get; set; }
 
+    [JsonPropertyName("Sector")]
+    public string? Sector { get; set; }
+
     [JsonPropertyName("PERatio")]
     public string? PERatio { get; set; }
 
